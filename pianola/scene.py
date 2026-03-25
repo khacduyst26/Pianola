@@ -47,6 +47,12 @@ class PianolaConfig:
     fixed_camera: Annotated[bool, Parameter(group="Piano")] = True
     """Lock camera to show all notes (disable dynamic zoom)"""
 
+    start_from: Annotated[float, Parameter(group="Piano")] = 0.0
+    """Start rendering from this time in seconds (default: 0)"""
+
+    duration: Annotated[Optional[float], Parameter(group="Piano")] = None
+    """Duration to render in seconds (default: full song)"""
+
     vertical: Annotated[bool, Parameter(group="Piano")] = False
     """Vertical/Shorts mode: larger chord column and labels"""
 
@@ -294,8 +300,8 @@ class PianolaScene(ShaderScene):
             self._chord_count = 0
 
         if mxml_data.lyrics:
-            if lyrics_from_own_part:
-                # Mode 0: lyrics on note bars
+            if lyrics_from_own_part and not self.config.vertical:
+                # Mode 0: lyrics on note bars (not used in vertical/shorts mode)
                 self._lyric_mode = 0
                 atlas, timing, _ = build_lyric_textures_on_note(mxml_data.lyrics, verse=1)
                 self.lyric_atlas.from_numpy(atlas)
@@ -354,7 +360,15 @@ class PianolaScene(ShaderScene):
             self.piano.global_maximum_note,
         )
 
+        # Apply start time offset
+        if self.config.start_from > 0:
+            self.time = self.config.start_from
+
     def main(self, **kwargs):
+        # Apply start_from/duration to shaderflow's time param
+        if self.config.duration is not None:
+            kwargs.setdefault("time", self.config.duration)
+
         output = super().main(**kwargs)
 
         # Mux audio into video after render (workaround for shaderflow audio bug)
@@ -362,9 +376,13 @@ class PianolaScene(ShaderScene):
             video_path = Path(output)
             if video_path.exists() and self._pending_audio.exists():
                 muxed = video_path.with_stem(video_path.stem + "_muxed")
+                audio_args = []
+                if self.config.start_from > 0:
+                    audio_args = ["-ss", str(self.config.start_from)]
                 subprocess.check_call((
                     "ffmpeg", "-hide_banner", "-loglevel", "error",
                     "-i", str(video_path),
+                    *audio_args,
                     "-i", str(self._pending_audio),
                     "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
                     "-shortest", "-y", str(muxed),

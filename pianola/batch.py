@@ -33,6 +33,8 @@ def main():
     parser.add_argument("--output-dir", default=None, help="Output directory (default: same as input file)")
     parser.add_argument("--preview", action="store_true", help="Fast preview (540p, 30fps, ssaa 1)")
     parser.add_argument("--soundfont", default=None, help="Custom SoundFont path")
+    parser.add_argument("--duration", type=float, default=None, help="Render only N seconds (default: full song)")
+    parser.add_argument("--start-from", type=float, default=0.0, help="Start from N seconds (default: 0)")
     args = parser.parse_args()
 
     input_path = Path(args.input).resolve()
@@ -57,9 +59,15 @@ def main():
     if args.soundfont:
         sf_line = [f'soundfont = Path("{Path(args.soundfont).resolve()}")']
 
+    time_lines = []
+    if args.duration is not None:
+        time_lines.append(f'duration = {args.duration}')
+    if args.start_from > 0:
+        time_lines.append(f'start_from = {args.start_from}')
+
     base_config = [
         f'musicxml = Path("{input_path}")',
-    ] + sf_line
+    ] + sf_line + time_lines
 
     versions = [
         {

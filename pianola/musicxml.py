@@ -56,10 +56,13 @@ def _note_name(name: str) -> str:
 
 def _build_chord_label(harmony) -> str:
     """Build a readable chord label from a music21 Harmony object."""
+    import music21
+    if isinstance(harmony, music21.harmony.NoChord):
+        return "N.C."
     try:
         root = _note_name(harmony.root().name)
     except Exception:
-        return str(harmony)
+        return "N.C."
 
     kind = harmony.chordKind or "major"
     suffix = _KIND_LABELS.get(kind, kind)

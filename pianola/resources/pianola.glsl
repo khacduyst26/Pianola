@@ -58,6 +58,33 @@ Segment makeSegment(float x, int a, int b, int offset) {
     return S;
 }
 
+// Count white keys from MIDI note 0 up to (not including) note n
+float whiteKeysBelow(int n) {
+    // Each octave has 7 white keys (C D E F G A B)
+    int octaves = n / 12;
+    int pc = ((n % 12) + 12) % 12;
+    // White keys per pitch class: C=0,D=1,E=2,F=3,G=4,A=5,B=6
+    // Cumulative whites at each pc: 0,1,1,2,2,3,3,4,4,5,5,6
+    int cumWhites[12] = int[12](0,1,1,2,2,3,3,4,4,5,5,6);
+    return float(octaves * 7 + cumWhites[pc]);
+}
+
+// Convert MIDI note to rollUV.x using white-key spacing
+float midiToRollX(int midi, vec2 pianoDynamic, float pianoExtra) {
+    float minNote = pianoDynamic.x - pianoExtra;
+    float maxNote = pianoDynamic.y + pianoExtra;
+    float totalWhites = whiteKeysBelow(int(maxNote) + 1) - whiteKeysBelow(int(minNote));
+    float noteWhites = whiteKeysBelow(midi) - whiteKeysBelow(int(minNote));
+
+    int pc = ((midi % 12) + 12) % 12;
+    bool isWhite = (pc==0||pc==2||pc==4||pc==5||pc==7||pc==9||pc==11);
+    if (isWhite) {
+        noteWhites += 0.5; // center of white key
+    }
+
+    return noteWhites / totalWhites;
+}
+
 // Sample text atlas at the correct UV for a given entry
 vec4 sampleTextAtlas(sampler2D atlas, vec2 atlasSize, float v0, float v1, vec2 localUV) {
     // localUV.x: 0-1 across the column width
@@ -111,17 +138,26 @@ void main() {
             float v0 = chordData.z;
             float v1 = chordData.w;
 
+            // Fixed display height in pixels, allow overflow outside column
+            float fixedPixH = (iVerticalMode == 1) ? 48.0 : 28.0;
             float texH = abs(v1 - v0) * iChordAtlasSize.y;
             float texW = iChordAtlasSize.x;
-            float displayH = texH * (colPixelW / texW);
-            float textHeightSec = displayH * secPerPixel;
+            // Display width maintaining aspect ratio at fixed height
+            float displayPixW = fixedPixH * (texW / texH);
+            float displayW = displayPixW / iResolution.x;
+            float displayHFrac = fixedPixH / iResolution.y;
+            float textHeightSec = displayHFrac * iPianoRollTime / (1.0 - iPianoHeight);
 
             if (seconds >= chordTime && seconds < chordTime + textHeightSec) {
                 float localY = (seconds - chordTime) / textHeightSec;
-                float localX = uv.x / colWidth;
-                vec4 texColor = sampleTextAtlas(iChordAtlas, iChordAtlasSize, v0, v1, vec2(localX, localY));
-                if (texColor.a > 0.1) {
-                    fragColor.rgb = mix(fragColor.rgb, vec3(1.0, 0.9, 0.3), texColor.a);
+                // Center in column, allow overflow
+                float centerX = colWidth * 0.5;
+                float localX = (uv.x - centerX) / displayW + 0.5;
+                if (localX >= 0.0 && localX <= 1.0) {
+                    vec4 texColor = sampleTextAtlas(iChordAtlas, iChordAtlasSize, v0, v1, vec2(localX, localY));
+                    if (texColor.a > 0.1) {
+                        fragColor.rgb = mix(fragColor.rgb, vec3(1.0, 0.9, 0.3), texColor.a);
+                    }
                 }
             }
         }
@@ -374,36 +410,34 @@ void main() {
                     float displayH = displayPixH / rollPixelH;
                     float textHeightSec = displayH * iPianoRollTime;
 
-                    // Note center X in roll UV space
-                    // Use note index directly (maps to key center in the linear MIDI space)
-                    float iPianoMin = (iPianoDynamic.x - iPianoExtra) - 0.1;
-                    float iPianoMax = (iPianoDynamic.y + iPianoExtra) + 0.1;
-                    float noteCenterX = (noteMidi + 0.5 - iPianoMin) / (iPianoMax - iPianoMin);
+                    // Note center X in roll UV space - match piano key layout
+                    float noteCenterX = midiToRollX(int(noteMidi), iPianoDynamic, iPianoExtra);
 
                     if (seconds >= lyricTime && seconds < lyricTime + textHeightSec) {
                         float localY = (seconds - lyricTime) / textHeightSec;
                         // Center text on note
                         float localX = (rollUV.x - noteCenterX) / displayW + 0.5;
                         if (localX >= -0.05 && localX <= 1.05) {
-                            // Black outline: sample neighbors
-                            float outlineStep = 1.5 / iLyricAtlasSize.x;
-                            float outlineStepV = 1.5 / iLyricAtlasSize.y;
+                            // Black outline: uniform in screen space
+                            float strokePx = 1.0;
+                            float stepX = strokePx / displayPixW;
+                            float stepY = strokePx / displayPixH;
                             float outline = 0.0;
-                            for (int ox = -1; ox <= 1; ox++) {
-                                for (int oy = -1; oy <= 1; oy++) {
+                            for (int ox = -2; ox <= 2; ox++) {
+                                for (int oy = -2; oy <= 2; oy++) {
                                     if (ox == 0 && oy == 0) continue;
-                                    vec2 off = vec2(float(ox) * outlineStep, float(oy) * outlineStepV);
+                                    vec2 off = vec2(float(ox) * stepX, float(oy) * stepY);
                                     vec4 s = sampleTextAtlas(iLyricAtlas, iLyricAtlasSize, v0, v1, vec2(localX, localY) + off);
                                     outline = max(outline, s.a);
                                 }
                             }
                             if (outline > 0.1) {
-                                fragColor.rgb = mix(fragColor.rgb, vec3(0.0), outline * 0.8);
+                                fragColor.rgb = mix(fragColor.rgb, vec3(1.0), outline * 0.9);
                             }
-                            // White text on top
+                            // Black text on top
                             vec4 texColor = sampleTextAtlas(iLyricAtlas, iLyricAtlasSize, v0, v1, vec2(localX, localY));
                             if (texColor.a > 0.1) {
-                                fragColor.rgb = mix(fragColor.rgb, vec3(1.0), texColor.a * 0.95);
+                                fragColor.rgb = mix(fragColor.rgb, vec3(0.0), texColor.a * 0.95);
                             }
                         }
                     }
@@ -440,8 +474,9 @@ void main() {
                 // Render 2 slots at center of roll
                 float lineHeight = 0.05;
                 float topY = 0.92;  // near top of roll area
+                float gap = (iVerticalMode == 1) ? 1.0 : 2.5;
                 float slot0Y = topY;                         // top slot
-                float slot1Y = topY - lineHeight * 2.5;      // bottom slot (1.5x gap)
+                float slot1Y = topY - lineHeight * gap;      // bottom slot
 
                 for (int pass = 0; pass < 2; pass++) {
                     int lineIdx = (pass == 0) ? slot0Line : slot1Line;
@@ -458,7 +493,7 @@ void main() {
                     // Display size: scale to fit roll width
                     float texH = abs(v1 - v0) * iLyricAtlasSize.y;
                     float texW = iLyricAtlasSize.x;
-                    float displayW = 0.8;
+                    float displayW = (iVerticalMode == 1) ? 1.2 : 0.8;
                     float displayH = displayW * (texH / texW) * iAspectRatio;
 
                     float centerX = 0.5;
@@ -477,7 +512,7 @@ void main() {
                                     vec4 sylData = texelFetch(iSyllableTiming, ivec2(0, s), 0);
                                     if (int(sylData.y) != lineIdx) continue;
                                     if (sylData.x <= iTime && localX >= sylData.z && localX <= sylData.w) {
-                                        textColor = vec3(1.0, 1.0, 0.3);
+                                        textColor = vec3(1.0, 1.0, 1.0);
                                     }
                                 }
                             }
