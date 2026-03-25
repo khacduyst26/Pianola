@@ -146,6 +146,32 @@ Good for practice or background music videos.
 
 ---
 
+## 4. YouTube Shorts (9:16 Vertical)
+
+Vertical format for YouTube Shorts / Instagram Reels / TikTok.
+Voice melody with dynamic camera that follows the playing notes.
+
+- **Video**: Part 1 (Voice Only) — 9:16 vertical, dynamic camera
+- **Audio**: Parts 1,2,3 — full accompaniment
+
+**Preview:**
+```bash
+.venv/bin/python -m pianola.shorts examples/113362.xml -o shorts-preview.mp4 --preview
+```
+
+**Production:**
+```bash
+.venv/bin/python -m pianola.shorts examples/113362.xml -o shorts-hq.mp4
+```
+
+**What you get:**
+- 1080x1920 vertical video (540x960 for preview)
+- Dynamic camera zooming and following the playing notes
+- Lyrics on note bars, chord labels in left column
+- Full audio with all parts
+
+---
+
 ## Tips
 
 - **Custom SoundFont**: Use `--soundfont /path/to/your.sf2` to override the default

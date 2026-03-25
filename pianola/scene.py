@@ -44,6 +44,12 @@ class PianolaConfig:
     sidekeys: Annotated[int, Parameter(group="Piano")] = 6
     """Extends the dynamic focus on playing notes"""
 
+    fixed_camera: Annotated[bool, Parameter(group="Piano")] = True
+    """Lock camera to show all notes (disable dynamic zoom)"""
+
+    vertical: Annotated[bool, Parameter(group="Piano")] = False
+    """Vertical/Shorts mode: larger chord column and labels"""
+
     # --------------------------------------|
     # Input
 
@@ -323,6 +329,7 @@ class PianolaScene(ShaderScene):
         yield Uniform("vec2", "iLyricAtlasSize", self._lyric_atlas_size)
         yield Uniform("vec2", "iKeyLabelAtlasSize", self._key_label_atlas_size)
         yield Uniform("float", "iKeyLabelRowH", float(self._key_label_row_h))
+        yield Uniform("int", "iVerticalMode", int(self.config.vertical))
 
     def setup(self) -> None:
         self.piano.clear()
@@ -374,6 +381,6 @@ class PianolaScene(ShaderScene):
         self._mouse_drag_time_factor = (self.piano.roll_time/(self.piano.height - 1))*self.camera.zoom.value
 
         # Fixed camera: override dynamic zoom to show all notes
-        if hasattr(self, "_fixed_note_range"):
+        if self.config.fixed_camera and hasattr(self, "_fixed_note_range"):
             self.piano.note_range_dynamics.value[:] = self._fixed_note_range
             self.piano.note_range_dynamics.target[:] = self._fixed_note_range

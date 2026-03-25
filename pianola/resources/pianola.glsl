@@ -84,7 +84,7 @@ void main() {
 
     // Determine which region we're in
     bool hasChordCol = (iChordCount > 0);
-    float colWidth = hasChordCol ? COLUMN_WIDTH : 0.0;
+    float colWidth = hasChordCol ? (iVerticalMode == 1 ? COLUMN_WIDTH * 2.0 : COLUMN_WIDTH) : 0.0;
     bool inChordCol = hasChordCol && (uv.x < colWidth);
     bool inRoll = !inChordCol;
 
