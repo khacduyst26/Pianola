@@ -32,7 +32,9 @@
       "Bash(ffprobe examples/batch-final/113362-short.mp4)",
       "Bash(.venv/bin/python -m pianola.batch examples/113362.xml --output-dir examples/batch-v2 --preview)",
       "Bash(.venv/bin/python -m pianola.batch examples/113362.xml --output-dir examples/batch-v3 --preview)",
-      "Bash(ffprobe examples/batch-v3/113362-short.mp4)"
+      "Bash(ffprobe examples/batch-v3/113362-short.mp4)",
+      "Bash(.venv/bin/python -m pianola.batch '/Users/duy.do/Desktop/I JUST MIGHT.musicxml' --output-dir examples/batch-v4 --preview)",
+      "Bash(ls -lh \"examples/batch-v4/I JUST MIGHT\"*.mp4)"
     ]
   }
 }

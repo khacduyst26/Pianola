@@ -151,7 +151,10 @@ def parse_musicxml(
         result.part_names.append(part.partName or f"Part {len(result.part_names) + 1}")
 
     # Expand repeats so notes/chords/lyrics match actual playback
-    score = score.expandRepeats()
+    try:
+        score = score.expandRepeats()
+    except Exception:
+        pass  # Badly formed repeats — use score as-is
 
     # Build tempo map from expanded score
     tempo_map = _get_tempo_map(score)
@@ -279,6 +282,18 @@ def musicxml_to_midi(
     for part in score.parts:
         for h in list(part.recurse().getElementsByClass(music21.harmony.Harmony)):
             part.remove(h, recurse=True)
+
+    # Strip all repeat-related elements to avoid expandRepeats crash in score.write('midi')
+    for part in score.parts:
+        for m in part.getElementsByClass(music21.stream.Measure):
+            if m.leftBarline and isinstance(m.leftBarline, music21.bar.Repeat):
+                m.leftBarline = None
+            if m.rightBarline and isinstance(m.rightBarline, music21.bar.Repeat):
+                m.rightBarline = None
+        for sp in list(part.getElementsByClass(music21.spanner.RepeatBracket)):
+            part.remove(sp)
+        for re in list(part.recurse().getElementsByClass(music21.repeat.RepeatExpression)):
+            part.remove(re, recurse=True)
 
     score.write("midi", fp=str(output_path))
     return output_path
