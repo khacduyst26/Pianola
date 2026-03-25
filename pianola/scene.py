@@ -117,8 +117,12 @@ class PianolaScene(ShaderScene):
         self.lyric_atlas.from_numpy(np.zeros((1, 1, 4), dtype=np.uint8))
         self.lyric_timing = ShaderTexture(scene=self, name="iLyricTiming")
         self.lyric_timing.from_numpy(np.zeros((1, 1, 4), dtype=np.float32))
+        self.syllable_timing = ShaderTexture(scene=self, name="iSyllableTiming")
+        self.syllable_timing.from_numpy(np.zeros((1, 1, 4), dtype=np.float32))
         self._chord_count = 0
         self._lyric_count = 0
+        self._syllable_count = 0
+        self._lyric_mode = 0  # 0=on-note, 1=karaoke
         self._chord_atlas_size = (1, 1)
         self._lyric_atlas_size = (1, 1)
 
@@ -153,6 +157,9 @@ class PianolaScene(ShaderScene):
         mxml_data = parse_musicxml(xml_path, part_indices=video_parts)
         self._musicxml_data = mxml_data
 
+        # Check if the selected parts have their own lyrics
+        lyrics_from_own_part = bool(mxml_data.lyrics)
+
         # Parse ALL parts for chords/lyrics (they may be on a different part)
         mxml_all = parse_musicxml(xml_path, part_indices=None)
         if mxml_all.chords and not mxml_data.chords:
@@ -176,7 +183,7 @@ class PianolaScene(ShaderScene):
             )
 
         # Build text overlay textures
-        self._load_text_overlays(mxml_data)
+        self._load_text_overlays(mxml_data, lyrics_from_own_part)
 
         # Pre-render audio: MusicXML → MIDI → fluidsynth → WAV
         # Store for post-render muxing (shaderflow audio pipeline has bugs)
@@ -213,32 +220,55 @@ class PianolaScene(ShaderScene):
             ))
             self._pending_audio = Path(self._audio.name)
 
-    def _load_text_overlays(self, mxml_data) -> None:
+    def _load_text_overlays(self, mxml_data, lyrics_from_own_part: bool) -> None:
         """Build and load chord/lyric atlas textures from parsed MusicXML data."""
-        from pianola.text_overlay import build_chord_textures, build_lyric_textures
+        from pianola.text_overlay import (
+            build_chord_textures, build_lyric_textures_on_note,
+            build_lyric_textures_karaoke,
+        )
 
         if mxml_data.chords:
             atlas, timing, _ = build_chord_textures(mxml_data.chords)
             self.chord_atlas.from_numpy(atlas)
-            self.chord_timing.from_numpy(timing)
+            # Pre-flip timing so from_numpy's flipud results in correct order
+            self.chord_timing.from_numpy(np.flipud(timing))
             self._chord_count = timing.shape[0]
             self._chord_atlas_size = (atlas.shape[1], atlas.shape[0])
         else:
             self._chord_count = 0
 
         if mxml_data.lyrics:
-            atlas, timing, _ = build_lyric_textures(mxml_data.lyrics, verse=1)
-            self.lyric_atlas.from_numpy(atlas)
-            self.lyric_timing.from_numpy(timing)
-            self._lyric_count = timing.shape[0]
-            self._lyric_atlas_size = (atlas.shape[1], atlas.shape[0])
+            if lyrics_from_own_part:
+                # Mode 0: lyrics on note bars
+                self._lyric_mode = 0
+                atlas, timing, _ = build_lyric_textures_on_note(mxml_data.lyrics, verse=1)
+                self.lyric_atlas.from_numpy(atlas)
+                self.lyric_timing.from_numpy(np.flipud(timing))
+                self._lyric_count = timing.shape[0]
+                self._lyric_atlas_size = (atlas.shape[1], atlas.shape[0])
+                self._syllable_count = 0
+            else:
+                # Mode 1: karaoke overlay
+                self._lyric_mode = 1
+                atlas, line_timing, syl_timing, _ = build_lyric_textures_karaoke(
+                    mxml_data.lyrics, verse=1
+                )
+                self.lyric_atlas.from_numpy(atlas)
+                self.lyric_timing.from_numpy(np.flipud(line_timing))
+                self.syllable_timing.from_numpy(np.flipud(syl_timing))
+                self._lyric_count = line_timing.shape[0]
+                self._syllable_count = syl_timing.shape[0]
+                self._lyric_atlas_size = (atlas.shape[1], atlas.shape[0])
         else:
             self._lyric_count = 0
+            self._syllable_count = 0
 
     def pipeline(self) -> Iterable[ShaderVariable]:
         yield from super().pipeline()
         yield Uniform("int", "iChordCount", self._chord_count)
         yield Uniform("int", "iLyricCount", self._lyric_count)
+        yield Uniform("int", "iSyllableCount", self._syllable_count)
+        yield Uniform("int", "iLyricMode", self._lyric_mode)
         yield Uniform("vec2", "iChordAtlasSize", self._chord_atlas_size)
         yield Uniform("vec2", "iLyricAtlasSize", self._lyric_atlas_size)
 

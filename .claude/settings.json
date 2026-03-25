@@ -19,7 +19,9 @@
       "Bash(ffprobe examples/113362-p1-audio-full.mp4)",
       "Bash(ffprobe examples/113362-p2-audio-full.mp4)",
       "Bash(ffprobe examples/113362-p23.mp4)",
-      "Bash(ffprobe examples/113362-p23-fixed.mp4)"
+      "Bash(ffprobe examples/113362-p23-fixed.mp4)",
+      "Bash(ffprobe examples/113362-lyrics-on-note.mp4)",
+      "Bash(ffprobe examples/113362-karaoke.mp4)"
     ]
   }
 }

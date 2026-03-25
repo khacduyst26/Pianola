@@ -83,86 +83,57 @@ void main() {
     #endif
 
     // Determine which region we're in
-    bool hasTextOverlay = (iChordCount > 0 || iLyricCount > 0);
-    float colWidth = hasTextOverlay ? COLUMN_WIDTH : 0.0;
-    bool inChordCol = hasTextOverlay && (uv.x < colWidth);
-    bool inLyricCol = hasTextOverlay && (uv.x > (1.0 - colWidth));
-    bool inRoll = !inChordCol && !inLyricCol;
+    bool hasChordCol = (iChordCount > 0);
+    float colWidth = hasChordCol ? COLUMN_WIDTH : 0.0;
+    bool inChordCol = hasChordCol && (uv.x < colWidth);
+    bool inRoll = !inChordCol;
 
-    // Remap UV for piano roll to fill the center region
+    // Remap UV for piano roll to fill the region after chord column
     vec2 rollUV = uv;
-    if (hasTextOverlay) {
-        rollUV.x = (uv.x - colWidth) / (1.0 - 2.0 * colWidth);
+    if (hasChordCol) {
+        rollUV.x = (uv.x - colWidth) / (1.0 - colWidth);
     }
 
-    // ===================== TEXT COLUMNS (above piano height only) =====================
-    if ((inChordCol || inLyricCol) && uv.y >= iPianoHeight) {
-        // Dark background for text columns
+    // ===================== CHORD COLUMN (left, above piano height) =====================
+    if (inChordCol && uv.y >= iPianoHeight) {
         fragColor = vec4(vec3(0.12), 1);
 
-        // Map Y to time (same as piano roll)
         vec2 roll = vec2(uv.x, lerp(iPianoHeight, 0, 1, 1, uv.y));
         float seconds = iTime + iPianoRollTime * roll.y;
 
-        // Column pixel dimensions for aspect ratio calculation
         float colPixelW = colWidth * iResolution.x;
         float rollPixelH = (1.0 - iPianoHeight) * iResolution.y;
         float secPerPixel = iPianoRollTime / rollPixelH;
 
-        if (inChordCol) {
-            for (int i = 0; i < iChordCount; i++) {
-                vec4 chordData = texelFetch(iChordTiming, ivec2(0, i), 0);
-                float chordTime = chordData.x;
-                float v0 = chordData.z;
-                float v1 = chordData.w;
+        for (int i = 0; i < iChordCount; i++) {
+            vec4 chordData = texelFetch(iChordTiming, ivec2(0, i), 0);
+            float chordTime = chordData.x;
+            float v0 = chordData.z;
+            float v1 = chordData.w;
 
-                // All entries same size in atlas, aspect ratio preserved
-                float texH = abs(v1 - v0) * iChordAtlasSize.y;
-                float texW = iChordAtlasSize.x;
-                float displayH = texH * (colPixelW / texW);
-                float textHeightSec = displayH * secPerPixel;
+            float texH = abs(v1 - v0) * iChordAtlasSize.y;
+            float texW = iChordAtlasSize.x;
+            float displayH = texH * (colPixelW / texW);
+            float textHeightSec = displayH * secPerPixel;
 
-                if (seconds >= chordTime && seconds < chordTime + textHeightSec) {
-                    float localY = (seconds - chordTime) / textHeightSec;
-                    float localX = uv.x / colWidth;
-                    vec4 texColor = sampleTextAtlas(iChordAtlas, iChordAtlasSize, v0, v1, vec2(localX, localY));
-                    if (texColor.a > 0.1) {
-                        fragColor.rgb = mix(fragColor.rgb, vec3(1.0, 0.9, 0.3), texColor.a);
-                    }
-                }
-            }
-        }
-
-        if (inLyricCol) {
-            for (int i = 0; i < iLyricCount; i++) {
-                vec4 lyricData = texelFetch(iLyricTiming, ivec2(0, i), 0);
-                float lyricTime = lyricData.x;
-                float v0 = lyricData.z;
-                float v1 = lyricData.w;
-
-                float texH = abs(v1 - v0) * iLyricAtlasSize.y;
-                float texW = iLyricAtlasSize.x;
-                float displayH = texH * (colPixelW / texW);
-                float textHeightSec = displayH * secPerPixel;
-
-                if (seconds >= lyricTime && seconds < lyricTime + textHeightSec) {
-                    float localY = (seconds - lyricTime) / textHeightSec;
-                    float localX = (uv.x - (1.0 - colWidth)) / colWidth;
-                    vec4 texColor = sampleTextAtlas(iLyricAtlas, iLyricAtlasSize, v0, v1, vec2(localX, localY));
-                    if (texColor.a > 0.1) {
-                        fragColor.rgb = mix(fragColor.rgb, vec3(0.7, 0.9, 1.0), texColor.a);
-                    }
+            if (seconds >= chordTime && seconds < chordTime + textHeightSec) {
+                float localY = (seconds - chordTime) / textHeightSec;
+                float localX = uv.x / colWidth;
+                vec4 texColor = sampleTextAtlas(iChordAtlas, iChordAtlasSize, v0, v1, vec2(localX, localY));
+                if (texColor.a > 0.1) {
+                    fragColor.rgb = mix(fragColor.rgb, vec3(1.0, 0.9, 0.3), texColor.a);
                 }
             }
         }
 
         // Separator line
-        if (inChordCol && abs(uv.x - colWidth) < 0.001) {
+        if (abs(uv.x - colWidth) < 0.001) {
             fragColor.rgb = vec3(0.3);
         }
-        if (inLyricCol && abs(uv.x - (1.0 - colWidth)) < 0.001) {
-            fragColor.rgb = vec3(0.3);
-        }
+
+    } else if (inChordCol) {
+        // Chord column below piano height
+        fragColor = vec4(vec3(0.12), 1);
 
     // ===================== PIANO KEYS + ROLL (center region) =====================
     } else if (inRoll) {
@@ -321,13 +292,112 @@ void main() {
                     }
                 }
             }
+
+            // ===== LYRICS ON NOTES (mode 0) =====
+            if (iLyricMode == 0 && iLyricCount > 0) {
+                float rollPixelH = (1.0 - iPianoHeight) * iResolution.y;
+                float secPerPixel = iPianoRollTime / rollPixelH;
+                float rollW = (1.0 - colWidth) * iResolution.x;
+
+                for (int i = 0; i < iLyricCount; i++) {
+                    vec4 lyricData = texelFetch(iLyricTiming, ivec2(0, i), 0);
+                    float lyricTime = lyricData.x;
+                    float noteMidi = lyricData.y;
+                    float v0 = lyricData.z;
+                    float v1 = lyricData.w;
+
+                    // Text display size
+                    float texH = abs(v1 - v0) * iLyricAtlasSize.y;
+                    float texW = iLyricAtlasSize.x;
+                    // Fixed display width in screen fraction
+                    float displayWidthFrac = 0.08;
+                    float displayHeightFrac = displayWidthFrac * (texH / texW) * iAspectRatio;
+                    float textHeightSec = displayHeightFrac * iPianoRollTime / (1.0 - iPianoHeight);
+
+                    // Position: center on the note's key X position
+                    float noteX = (noteMidi - iPianoDynamic.x + iPianoExtra) /
+                                  (iPianoDynamic.y - iPianoDynamic.x + 2.0 * iPianoExtra);
+
+                    if (seconds >= lyricTime && seconds < lyricTime + textHeightSec) {
+                        float localY = (seconds - lyricTime) / textHeightSec;
+                        float localX = (rollUV.x - noteX) / displayWidthFrac + 0.5;
+                        if (localX >= 0.0 && localX <= 1.0) {
+                            vec4 texColor = sampleTextAtlas(iLyricAtlas, iLyricAtlasSize, v0, v1, vec2(localX, localY));
+                            if (texColor.a > 0.1) {
+                                fragColor.rgb = mix(fragColor.rgb, vec3(1.0, 1.0, 1.0), texColor.a * 0.9);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ===== KARAOKE MODE (mode 1) =====
+            if (iLyricMode == 1 && iLyricCount > 0) {
+                // Find current line: last line whose start_time <= iTime
+                int currentLine = -1;
+                int nextLine = -1;
+                for (int i = 0; i < iLyricCount; i++) {
+                    vec4 lineData = texelFetch(iLyricTiming, ivec2(0, i), 0);
+                    if (lineData.x <= iTime) {
+                        currentLine = i;
+                    } else {
+                        if (currentLine == -1) currentLine = i;
+                        break;
+                    }
+                }
+                nextLine = currentLine + 1;
+                if (nextLine >= iLyricCount) nextLine = -1;
+
+                // Render 2 lines at center of roll
+                float lineHeight = 0.05;
+                float centerY = 0.5 * (iPianoHeight + 1.0);
+                float line1Y = centerY + lineHeight * 0.7;
+                float line2Y = centerY - lineHeight * 0.7;
+
+                for (int pass = 0; pass < 2; pass++) {
+                    int lineIdx = (pass == 0) ? currentLine : nextLine;
+                    if (lineIdx < 0) continue;
+                    float targetY = (pass == 0) ? line1Y : line2Y;
+
+                    vec4 lineData = texelFetch(iLyricTiming, ivec2(0, lineIdx), 0);
+                    float v0 = lineData.z;
+                    float v1 = lineData.w;
+
+                    // Display size: scale to fit roll width
+                    float texH = abs(v1 - v0) * iLyricAtlasSize.y;
+                    float texW = iLyricAtlasSize.x;
+                    float displayW = 0.8;
+                    float displayH = displayW * (texH / texW) * iAspectRatio;
+
+                    float centerX = 0.5;
+                    float localX = (rollUV.x - centerX) / displayW + 0.5;
+                    float localY = (uv.y - targetY) / displayH + 0.5;
+
+                    if (localX >= 0.0 && localX <= 1.0 && localY >= 0.0 && localY <= 1.0) {
+                        vec4 texColor = sampleTextAtlas(iLyricAtlas, iLyricAtlasSize, v0, v1, vec2(localX, localY));
+                        if (texColor.a > 0.1) {
+                            // Base color: dim white for upcoming, brighter for current
+                            vec3 textColor = (pass == 0) ? vec3(0.6) : vec3(0.35);
+
+                            // Highlight sung syllables on current line
+                            if (pass == 0) {
+                                // localX is 0..1 in display space, same as atlas U
+                                for (int s = 0; s < iSyllableCount; s++) {
+                                    vec4 sylData = texelFetch(iSyllableTiming, ivec2(0, s), 0);
+                                    if (int(sylData.y) != lineIdx) continue;
+                                    if (sylData.x <= iTime && localX >= sylData.z && localX <= sylData.w) {
+                                        textColor = vec3(1.0, 1.0, 0.3);
+                                    }
+                                }
+                            }
+
+                            fragColor.rgb = mix(fragColor.rgb, textColor, texColor.a * 0.95);
+                        }
+                    }
+                }
+            }
         }
     }
-    // Text columns below piano height — just dark background
-    else {
-        fragColor = vec4(vec3(0.12), 1);
-    }
-
     // // Post Effects
 
     // Vignette

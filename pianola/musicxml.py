@@ -16,6 +16,7 @@ class LyricEvent:
     text: str
     syllabic: str = "single"
     verse: int = 1
+    note_midi: int = 60
 
 @dataclass
 class MusicXMLData:
@@ -210,6 +211,7 @@ def parse_musicxml(
 
             # Extract lyrics attached to this note
             if hasattr(elem, 'lyrics') and elem.lyrics:
+                midi_num = elem.pitch.midi if hasattr(elem, 'pitch') else 60
                 for lyric in elem.lyrics:
                     if lyric.text:
                         result.lyrics.append(LyricEvent(
@@ -217,6 +219,7 @@ def parse_musicxml(
                             text=lyric.text,
                             syllabic=lyric.syllabic or "single",
                             verse=lyric.number if lyric.number else 1,
+                            note_midi=midi_num,
                         ))
 
     # Extract chord symbols (from all parts — chords are usually on part 0)

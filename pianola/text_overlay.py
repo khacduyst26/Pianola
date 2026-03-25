@@ -120,19 +120,16 @@ def build_chord_textures(
     return atlas, timing, metadata
 
 
-def build_lyric_textures(
+def build_lyric_textures_on_note(
     lyrics: list,
     verse: int = 1,
     font_size: int = 40,
 ) -> tuple[np.ndarray, np.ndarray, list[dict]]:
-    """Build lyric atlas and timing textures for a specific verse.
+    """Build lyric textures for on-note mode (Part 1).
 
-    Each syllable is displayed individually, synced to its note.
-
-    Returns:
-        (atlas_rgba, timing_data, metadata)
+    Each syllable rendered at its note's position in the roll.
+    Timing texture: (time, note_midi, v0_gl, v1_gl)
     """
-    # Filter to requested verse
     verse_lyrics = [l for l in lyrics if l.verse == verse]
     if not verse_lyrics:
         return (
@@ -141,27 +138,146 @@ def build_lyric_textures(
             [],
         )
 
-    # Each syllable is its own entry, with hyphen for begin/middle
-    words = []  # list of (time, display_text)
+    # Each syllable with hyphen markers
+    entries = []
     for lyric in verse_lyrics:
         text = lyric.text
         if lyric.syllabic in ("begin", "middle"):
             text = text + " -"
         elif lyric.syllabic == "end":
             text = "- " + text
-        words.append((lyric.time, text))
+        entries.append((lyric.time, text, lyric.note_midi))
 
-    # Deduplicate labels for atlas
-    unique_labels = list(dict.fromkeys(w[1] for w in words))
+    unique_labels = list(dict.fromkeys(e[1] for e in entries))
     label_to_idx = {l: i for i, l in enumerate(unique_labels)}
-
     atlas, metadata = build_text_atlas(unique_labels, font_size=font_size)
 
-    # Build timing texture (GL V is flipped by from_numpy)
-    timing = np.zeros((len(words), 1, 4), dtype=np.float32)
-    for i, (time, word) in enumerate(words):
-        idx = label_to_idx[word]
-        m = metadata[idx]
-        timing[i, 0] = [time, m["u1"], 1.0 - m["v1"], 1.0 - m["v0"]]
+    # Timing: (time, note_midi, v0_gl, v1_gl)
+    timing = np.zeros((len(entries), 1, 4), dtype=np.float32)
+    for i, (time, text, note_midi) in enumerate(entries):
+        m = metadata[label_to_idx[text]]
+        timing[i, 0] = [time, float(note_midi), 1.0 - m["v1"], 1.0 - m["v0"]]
 
     return atlas, timing, metadata
+
+
+def _group_lyrics_into_lines(lyrics: list, verse: int = 1, max_per_line: int = 8) -> list:
+    """Group syllables into lines for karaoke display.
+
+    Returns list of lines, each line = list of (time, text, syllabic).
+    Lines break at punctuation or max_per_line syllables.
+    """
+    verse_lyrics = [l for l in lyrics if l.verse == verse]
+    lines = []
+    current_line = []
+
+    for lyric in verse_lyrics:
+        current_line.append(lyric)
+        # Break line at end of word with punctuation, or max length
+        is_word_end = lyric.syllabic in ("single", "end")
+        has_punct = any(c in lyric.text for c in ".,!?;:")
+        if (is_word_end and has_punct) or len(current_line) >= max_per_line:
+            lines.append(current_line)
+            current_line = []
+
+    if current_line:
+        lines.append(current_line)
+
+    return lines
+
+
+def build_lyric_textures_karaoke(
+    lyrics: list,
+    verse: int = 1,
+    font_size: int = 44,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, list[dict]]:
+    """Build lyric textures for karaoke mode (Part 2,3).
+
+    Renders full lines of text. Shader shows 2 lines at center, highlights active syllable.
+
+    Returns:
+        (atlas_rgba, line_timing, syllable_timing, metadata)
+        line_timing: (N_lines, 1, 4) float32 — (start_time, end_time, v0_gl, v1_gl)
+        syllable_timing: (N_syllables, 1, 4) float32 — (time, line_index, x_start_ratio, x_end_ratio)
+    """
+    lines = _group_lyrics_into_lines(lyrics, verse)
+    if not lines:
+        empty = np.zeros((1, 1, 4), dtype=np.float32)
+        return np.zeros((1, 1, 4), dtype=np.uint8), empty, empty, []
+
+    font = _get_font(font_size)
+
+    # Render each line as a single text string
+    temp_img = Image.new("RGBA", (1, 1))
+    temp_draw = ImageDraw.Draw(temp_img)
+
+    line_texts = []
+    line_syllable_info = []  # per line: list of (x_start, x_end) ratios
+
+    for line in lines:
+        # Build display text with spaces between words
+        parts = []
+        for syl in line:
+            text = syl.text
+            if syl.syllabic == "begin":
+                text = text + "-"
+            elif syl.syllabic == "middle":
+                text = "-" + text + "-"
+            elif syl.syllabic == "end":
+                text = "-" + text
+            parts.append(text)
+        full_text = " ".join(parts)
+        line_texts.append(full_text)
+
+        # Measure each syllable position within the line
+        positions = []
+        cursor = 0
+        for j, part in enumerate(parts):
+            prefix = " ".join(parts[:j]) + (" " if j > 0 else "")
+            bbox_start = temp_draw.textbbox((0, 0), prefix, font=font)
+            bbox_full = temp_draw.textbbox((0, 0), prefix + part, font=font)
+            x_start = bbox_start[2] if j > 0 else 0
+            x_end = bbox_full[2]
+            positions.append((x_start, x_end))
+        line_syllable_info.append(positions)
+
+    # Build atlas from line texts
+    atlas, metadata = build_text_atlas(line_texts, font_size=font_size)
+
+    # Line timing: (start_time, end_time, v0_gl, v1_gl)
+    # end_time = start of next line (no overlap)
+    line_timing = np.zeros((len(lines), 1, 4), dtype=np.float32)
+    for i, line in enumerate(lines):
+        start_time = line[0].time
+        if i + 1 < len(lines):
+            end_time = lines[i + 1][0].time
+        else:
+            end_time = line[-1].time + 5.0
+        m = metadata[i]
+        line_timing[i, 0] = [start_time, end_time, 1.0 - m["v1"], 1.0 - m["v0"]]
+
+    # Syllable timing: (time, line_index, x_start_norm, x_end_norm)
+    # x positions normalized to 0..1 within atlas width
+    # Account for centering offset in the atlas
+    total_syllables = sum(len(line) for line in lines)
+    syllable_timing = np.zeros((total_syllables, 1, 4), dtype=np.float32)
+    atlas_w = atlas.shape[1]
+    idx = 0
+    for i, (line, positions) in enumerate(zip(lines, line_syllable_info)):
+        # Centering offset: text is centered in uniform-width atlas row
+        text_w = metadata[i]["w"]  # this is max_w for all entries (uniform)
+        # Measure actual text width for this line
+        line_bbox = temp_draw.textbbox((0, 0), line_texts[i], font=font)
+        actual_w = line_bbox[2] - line_bbox[0] + 8  # padding*2
+        center_offset = (atlas_w - actual_w) // 2
+
+        for j, (syl, (x_start, x_end)) in enumerate(zip(line, positions)):
+            syllable_timing[idx, 0] = [
+                syl.time,
+                float(i),
+                (x_start + center_offset) / atlas_w,
+                (x_end + center_offset) / atlas_w,
+            ]
+            idx += 1
+
+    return atlas, line_timing, syllable_timing, metadata
