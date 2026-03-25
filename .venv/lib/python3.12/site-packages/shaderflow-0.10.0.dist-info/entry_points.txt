@@ -1,0 +1,3 @@
+[console_scripts]
+shader = shaderflow.__main__:main
+shaderflow = shaderflow.__main__:main

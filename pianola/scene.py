@@ -112,6 +112,12 @@ class PianolaScene(ShaderScene):
         self.piano.black_ratio = self.config.black
         self.piano.extra_keys = self.config.sidekeys
 
+        # Store global note range for fixed camera
+        self._fixed_note_range = (
+            self.piano.global_minimum_note,
+            self.piano.global_maximum_note,
+        )
+
         # Render midi to audio when no audio is provided
         if (self.exporting) and (self.config.audio is None):
             from tempfile import NamedTemporaryFile
@@ -129,3 +135,8 @@ class PianolaScene(ShaderScene):
     # Mouse drag time scroll to match piano roll size
     def update(self) -> None:
         self._mouse_drag_time_factor = (self.piano.roll_time/(self.piano.height - 1))*self.camera.zoom.value
+
+        # Fixed camera: override dynamic zoom to show all notes
+        if hasattr(self, "_fixed_note_range"):
+            self.piano.note_range_dynamics.value[:] = self._fixed_note_range
+            self.piano.note_range_dynamics.target[:] = self._fixed_note_range

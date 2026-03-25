@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip install:*)",
+      "Bash(pip3 install:*)",
+      "Bash(uv --version)",
+      "Bash(python3 -m venv .venv)",
+      "Bash(.venv/bin/pip install:*)",
+      "Bash(.venv/bin/python -c \"import music21; music21.converter.parse\\(''examples/full.musicxml''\\).write\\(''midi'', fp=''examples/full.mid''\\)\")",
+      "Bash(.venv/bin/pip list:*)",
+      "Read(//opt/homebrew/opt/**)",
+      "Bash(ls /opt/homebrew/bin/python3.*)",
+      "Read(//usr/bin/**)",
+      "Bash(brew list:*)",
+      "Bash(brew install:*)",
+      "Bash(/opt/homebrew/opt/python@3.12/bin/python3.12 -m venv .venv)",
+      "Bash(.venv/bin/pianola config:*)",
+      "Bash(ffprobe examples/full.mp4)",
+      "Bash(.venv/bin/python -c \":*)",
+      "Bash(fluidsynth --version)",
+      "Bash(.venv/bin/python xml2video.py examples/full.musicxml --list)",
+      "Bash(.venv/bin/python xml2video.py examples/full.musicxml -o examples/full.mp4)",
+      "Bash(.venv/bin/python xml2video.py examples/full.musicxml --midi-tracks 1 -o examples/full_track1.mp4)",
+      "Bash(ffprobe examples/full_track1.mp4)"
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(.venv/bin/python xml2video.py examples/113362.xml --list)",
+      "Bash(.venv/bin/python xml2video.py examples/113362.xml --midi-tracks 1 -o examples/113362_track1.mp4)",
+      "Bash(ffprobe examples/113362_track1.mp4)",
+      "Bash(.venv/bin/python xml2video.py examples/113362.xml --midi-parts 1 -o examples/113362_part1.mp4)",
+      "Bash(.venv/bin/python xml2video.py examples/113362-edit.musicxml --midi-parts 1)",
+      "Bash(ffprobe examples/113362-edit.mp4)",
+      "Bash(.venv/bin/python xml2video.py examples/113362-edit.musicxml --midi-parts 1 --audio-parts 1,2 -o examples/113362-edit-p1-audio-all.mp4)",
+      "Bash(ffprobe examples/113362-edit-p1-audio-all.mp4)",
+      "Bash(.venv/bin/python xml2video.py examples/113362-edit.musicxml --midi-parts 1 -o examples/113362-edit-fixed-cam.mp4)"
+    ]
+  }
+}
