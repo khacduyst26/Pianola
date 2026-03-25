@@ -186,7 +186,7 @@ class PianolaScene(ShaderScene):
 
         # Parse ALL parts for chords/lyrics (they may be on a different part)
         mxml_all = parse_musicxml(xml_path, part_indices=None)
-        if mxml_all.chords and not mxml_data.chords:
+        if mxml_all.chords and len(mxml_all.chords) > len(mxml_data.chords):
             mxml_data.chords = mxml_all.chords
         if mxml_all.lyrics and not mxml_data.lyrics:
             mxml_data.lyrics = mxml_all.lyrics

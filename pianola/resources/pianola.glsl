@@ -109,70 +109,11 @@ void main() {
         uv = vec2(uv.y, uv.x);
     #endif
 
-    // Determine which region we're in
-    bool hasChordCol = (iChordCount > 0);
-    float colWidth = hasChordCol ? (iVerticalMode == 1 ? COLUMN_WIDTH * 2.0 : COLUMN_WIDTH) : 0.0;
-    bool inChordCol = hasChordCol && (uv.x < colWidth);
-    bool inRoll = !inChordCol;
-
-    // Remap UV for piano roll to fill the region after chord column
+    // No chord column — full width for roll
+    float colWidth = 0.0;
     vec2 rollUV = uv;
-    if (hasChordCol) {
-        rollUV.x = (uv.x - colWidth) / (1.0 - colWidth);
-    }
 
-    // ===================== CHORD COLUMN (left, above piano height) =====================
-    if (inChordCol && uv.y >= iPianoHeight) {
-        fragColor = vec4(vec3(0.12), 1);
-
-        vec2 roll = vec2(uv.x, lerp(iPianoHeight, 0, 1, 1, uv.y));
-        float seconds = iTime + iPianoRollTime * roll.y;
-
-        float colPixelW = colWidth * iResolution.x;
-        float rollPixelH = (1.0 - iPianoHeight) * iResolution.y;
-        float secPerPixel = iPianoRollTime / rollPixelH;
-
-        for (int i = 0; i < iChordCount; i++) {
-            vec4 chordData = texelFetch(iChordTiming, ivec2(0, i), 0);
-            float chordTime = chordData.x;
-            float v0 = chordData.z;
-            float v1 = chordData.w;
-
-            // Fixed display height in pixels, allow overflow outside column
-            float fixedPixH = (iVerticalMode == 1) ? 48.0 : 28.0;
-            float texH = abs(v1 - v0) * iChordAtlasSize.y;
-            float texW = iChordAtlasSize.x;
-            // Display width maintaining aspect ratio at fixed height
-            float displayPixW = fixedPixH * (texW / texH);
-            float displayW = displayPixW / iResolution.x;
-            float displayHFrac = fixedPixH / iResolution.y;
-            float textHeightSec = displayHFrac * iPianoRollTime / (1.0 - iPianoHeight);
-
-            if (seconds >= chordTime && seconds < chordTime + textHeightSec) {
-                float localY = (seconds - chordTime) / textHeightSec;
-                // Center in column, allow overflow
-                float centerX = colWidth * 0.5;
-                float localX = (uv.x - centerX) / displayW + 0.5;
-                if (localX >= 0.0 && localX <= 1.0) {
-                    vec4 texColor = sampleTextAtlas(iChordAtlas, iChordAtlasSize, v0, v1, vec2(localX, localY));
-                    if (texColor.a > 0.1) {
-                        fragColor.rgb = mix(fragColor.rgb, vec3(1.0, 0.9, 0.3), texColor.a);
-                    }
-                }
-            }
-        }
-
-        // Separator line
-        if (abs(uv.x - colWidth) < 0.001) {
-            fragColor.rgb = vec3(0.3);
-        }
-
-    } else if (inChordCol) {
-        // Chord column below piano height
-        fragColor = vec4(vec3(0.12), 1);
-
-    // ===================== PIANO KEYS + ROLL (center region) =====================
-    } else if (inRoll) {
+    {
 
         // Calculate indices and coordinates using remapped UV
         float iPianoMin = (iPianoDynamic.x - iPianoExtra) - 0.1;
@@ -383,6 +324,40 @@ void main() {
                             fragColor.rgb*mix(0.1, 1, border),
                             mix(0, 1, border)
                         );
+                    }
+                }
+            }
+
+            // ===== CHORD LABELS (overlay on roll, top-left aligned) =====
+            if (iChordCount > 0) {
+                float rollPixH = (1.0 - iPianoHeight) * iResolution.y;
+
+                for (int i = 0; i < iChordCount; i++) {
+                    vec4 chordData = texelFetch(iChordTiming, ivec2(0, i), 0);
+                    float chordTime = chordData.x;
+                    float v0 = chordData.z;
+                    float v1 = chordData.w;
+
+                    // Fixed pixel height, 1.5x bigger
+                    float fixedPixH = (iVerticalMode == 1) ? 108.0 : 63.0;
+                    float texH = abs(v1 - v0) * iChordAtlasSize.y;
+                    float texW = iChordAtlasSize.x;
+                    float displayPixW = fixedPixH * (texW / texH);
+                    float displayW = displayPixW / iResolution.x;
+                    float displayHFrac = fixedPixH / iResolution.y;
+                    float textHeightSec = displayHFrac * iPianoRollTime / (1.0 - iPianoHeight);
+
+                    if (seconds >= chordTime && seconds < chordTime + textHeightSec) {
+                        float localY = (seconds - chordTime) / textHeightSec;
+                        // Align left: text starts at left edge with small padding
+                        float padX = 0.01;
+                        float localX = (uv.x - padX) / displayW;
+                        if (localX >= 0.0 && localX <= 1.0) {
+                            vec4 texColor = sampleTextAtlas(iChordAtlas, iChordAtlasSize, v0, v1, vec2(localX, localY));
+                            if (texColor.a > 0.1) {
+                                fragColor.rgb = mix(fragColor.rgb, vec3(1.0, 0.9, 0.3), texColor.a);
+                            }
+                        }
                     }
                 }
             }
