@@ -473,7 +473,7 @@ void main() {
 
                 // Render 2 slots at center of roll
                 float lineHeight = 0.05;
-                float topY = 0.92;  // near top of roll area
+                float topY = (iVerticalMode == 1) ? 0.65 : 0.92;
                 float gap = (iVerticalMode == 1) ? 1.0 : 2.5;
                 float slot0Y = topY;                         // top slot
                 float slot1Y = topY - lineHeight * gap;      // bottom slot
