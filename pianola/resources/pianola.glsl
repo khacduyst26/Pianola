@@ -9,22 +9,22 @@
 #define BLEED 0.02
 #define COLUMN_WIDTH 0.06
 
-// Note-name colors: C=Red, D=Orange, E=Yellow, F=Green, G=Blue, A=Purple, B=Pink
+// Vibrant pastel note colors inspired by colorful piano apps
 vec3 getNoteColor(int noteIndex) {
     int pc = noteIndex % 12; // pitch class: 0=C, 1=C#, 2=D, ...
     vec3 color = vec3(0.5);
-         if (pc == 0)  {color = vec3(0.93, 0.26, 0.21);}  // C  - Red
-    else if (pc == 1)  {color = vec3(0.93, 0.26, 0.21);}  // C# - Red
-    else if (pc == 2)  {color = vec3(0.98, 0.60, 0.20);}  // D  - Orange
-    else if (pc == 3)  {color = vec3(0.98, 0.60, 0.20);}  // D# - Orange
-    else if (pc == 4)  {color = vec3(0.98, 0.85, 0.20);}  // E  - Yellow
-    else if (pc == 5)  {color = vec3(0.42, 0.78, 0.35);}  // F  - Green
-    else if (pc == 6)  {color = vec3(0.42, 0.78, 0.35);}  // F# - Green
-    else if (pc == 7)  {color = vec3(0.35, 0.56, 0.93);}  // G  - Blue
-    else if (pc == 8)  {color = vec3(0.35, 0.56, 0.93);}  // G# - Blue
-    else if (pc == 9)  {color = vec3(0.62, 0.40, 0.85);}  // A  - Purple
-    else if (pc == 10) {color = vec3(0.62, 0.40, 0.85);}  // A# - Purple
-    else if (pc == 11) {color = vec3(0.91, 0.40, 0.62);}  // B  - Pink
+         if (pc == 0)  {color = vec3(0.20, 0.60, 1.00);}  // C  - Sky Blue
+    else if (pc == 1)  {color = vec3(0.30, 0.52, 0.90);}  // C# - Blue
+    else if (pc == 2)  {color = vec3(0.25, 0.70, 1.00);}  // D  - Light Blue
+    else if (pc == 3)  {color = vec3(0.20, 0.78, 0.65);}  // D# - Teal
+    else if (pc == 4)  {color = vec3(0.45, 0.85, 0.25);}  // E  - Lime Green
+    else if (pc == 5)  {color = vec3(0.40, 0.82, 0.30);}  // F  - Green
+    else if (pc == 6)  {color = vec3(0.35, 0.75, 0.28);}  // F# - Green
+    else if (pc == 7)  {color = vec3(0.98, 0.40, 0.60);}  // G  - Hot Pink
+    else if (pc == 8)  {color = vec3(0.90, 0.35, 0.55);}  // G# - Pink
+    else if (pc == 9)  {color = vec3(0.62, 0.38, 0.85);}  // A  - Purple
+    else if (pc == 10) {color = vec3(0.55, 0.32, 0.78);}  // A# - Violet
+    else if (pc == 11) {color = vec3(1.00, 0.60, 0.15);}  // B  - Orange
     return color;
 }
 
@@ -317,8 +317,10 @@ void main() {
                     float textHeightSec = displayH * iPianoRollTime;
 
                     // Note center X in roll UV space
-                    float noteCenterX = (noteMidi + 0.5 - iPianoDynamic.x + iPianoExtra) /
-                                        (iPianoDynamic.y - iPianoDynamic.x + 2.0 * iPianoExtra);
+                    // Use note index directly (maps to key center in the linear MIDI space)
+                    float iPianoMin = (iPianoDynamic.x - iPianoExtra) - 0.1;
+                    float iPianoMax = (iPianoDynamic.y + iPianoExtra) + 0.1;
+                    float noteCenterX = (noteMidi + 0.5 - iPianoMin) / (iPianoMax - iPianoMin);
 
                     if (seconds >= lyricTime && seconds < lyricTime + textHeightSec) {
                         float localY = (seconds - lyricTime) / textHeightSec;
