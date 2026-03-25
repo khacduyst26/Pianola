@@ -9,7 +9,17 @@
       "Bash(ffprobe examples/113362-edit.mp4)",
       "Bash(.venv/bin/python xml2video.py examples/113362-edit.musicxml --midi-parts 1 --audio-parts 1,2 -o examples/113362-edit-p1-audio-all.mp4)",
       "Bash(ffprobe examples/113362-edit-p1-audio-all.mp4)",
-      "Bash(.venv/bin/python xml2video.py examples/113362-edit.musicxml --midi-parts 1 -o examples/113362-edit-fixed-cam.mp4)"
+      "Bash(.venv/bin/python xml2video.py examples/113362-edit.musicxml --midi-parts 1 -o examples/113362-edit-fixed-cam.mp4)",
+      "Bash(ffprobe examples/113362-edit-native.mp4)",
+      "Bash(.venv/bin/python -c \":*)",
+      "Bash(ffprobe examples/113362-musicxml-test.mp4)",
+      "Bash(ffprobe examples/113362-musicxml-full-audio.mp4)",
+      "Bash(ffprobe examples/113362-text-overlay.mp4)",
+      "Bash(ffprobe examples/113362-repeat-fix.mp4)",
+      "Bash(ffprobe examples/113362-p1-audio-full.mp4)",
+      "Bash(ffprobe examples/113362-p2-audio-full.mp4)",
+      "Bash(ffprobe examples/113362-p23.mp4)",
+      "Bash(ffprobe examples/113362-p23-fixed.mp4)"
     ]
   }
 }

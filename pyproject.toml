@@ -11,6 +11,8 @@ dependencies = [
     "dearlog",
     "pooch~=1.0",
     "shaderflow",
+    "music21>=9.0",
+    "Pillow",
 ]
 
 [project.scripts]
