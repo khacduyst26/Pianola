@@ -28,6 +28,7 @@ def build_text_atlas(
     labels: list[str],
     font_size: int = 28,
     padding: int = 4,
+    align: str = "center",
 ) -> tuple[np.ndarray, list[dict]]:
     """Render text labels into a texture atlas.
 
@@ -66,8 +67,10 @@ def build_text_atlas(
 
     for i, (label, (w, h, bx, by)) in enumerate(zip(labels, measurements)):
         y_cursor = i * row_h
-        # Center text horizontally in the row
-        x_offset = (max_w - w) // 2 + padding - bx
+        if align == "left":
+            x_offset = padding - bx
+        else:
+            x_offset = (max_w - w) // 2 + padding - bx
         y_offset = y_cursor + (row_h - h) // 2 + padding - by
         draw.text((x_offset, y_offset), label, font=font, fill=(255, 255, 255, 255))
         metadata.append({
@@ -107,7 +110,7 @@ def build_chord_textures(
     unique_labels = list(dict.fromkeys(c.label for c in chords))
     label_to_idx = {l: i for i, l in enumerate(unique_labels)}
 
-    atlas, metadata = build_text_atlas(unique_labels, font_size=font_size)
+    atlas, metadata = build_text_atlas(unique_labels, font_size=font_size, align="left")
 
     # Build timing texture: each chord event → (time, u1, v0_gl, v1_gl)
     # Note: from_numpy flips vertically, so GL v0 = 1 - image_v1, GL v1 = 1 - image_v0
