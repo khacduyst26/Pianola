@@ -215,30 +215,28 @@ def build_lyric_textures_karaoke(
     line_syllable_info = []  # per line: list of (x_start, x_end) ratios
 
     for line in lines:
-        # Build display text with spaces between words
-        parts = []
-        for syl in line:
-            text = syl.text
-            if syl.syllabic == "begin":
-                text = text + "-"
-            elif syl.syllabic == "middle":
-                text = "-" + text + "-"
-            elif syl.syllabic == "end":
-                text = "-" + text
-            parts.append(text)
-        full_text = " ".join(parts)
-        line_texts.append(full_text)
+        # Build display text: join syllables into words, space between words only
+        full_text = ""
+        positions = []  # per syllable: (x_start, x_end) in pixels
 
-        # Measure each syllable position within the line
-        positions = []
-        cursor = 0
-        for j, part in enumerate(parts):
-            prefix = " ".join(parts[:j]) + (" " if j > 0 else "")
-            bbox_start = temp_draw.textbbox((0, 0), prefix, font=font)
-            bbox_full = temp_draw.textbbox((0, 0), prefix + part, font=font)
-            x_start = bbox_start[2] if j > 0 else 0
-            x_end = bbox_full[2]
+        for syl in line:
+            # Add space before new word (single or begin), except at start
+            if syl.syllabic in ("single", "begin") and full_text:
+                full_text += " "
+
+            # Measure x_start before adding this syllable
+            bbox_before = temp_draw.textbbox((0, 0), full_text, font=font) if full_text else (0, 0, 0, 0)
+            x_start = bbox_before[2]
+
+            full_text += syl.text
+
+            # Measure x_end after adding this syllable
+            bbox_after = temp_draw.textbbox((0, 0), full_text, font=font)
+            x_end = bbox_after[2]
+
             positions.append((x_start, x_end))
+
+        line_texts.append(full_text)
         line_syllable_info.append(positions)
 
     # Build atlas from line texts

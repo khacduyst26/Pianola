@@ -296,8 +296,8 @@ void main() {
             // ===== LYRICS ON NOTES (mode 0) =====
             if (iLyricMode == 0 && iLyricCount > 0) {
                 float rollPixelH = (1.0 - iPianoHeight) * iResolution.y;
+                float rollPixelW = (1.0 - colWidth) * iResolution.x;
                 float secPerPixel = iPianoRollTime / rollPixelH;
-                float rollW = (1.0 - colWidth) * iResolution.x;
 
                 for (int i = 0; i < iLyricCount; i++) {
                     vec4 lyricData = texelFetch(iLyricTiming, ivec2(0, i), 0);
@@ -306,25 +306,44 @@ void main() {
                     float v0 = lyricData.z;
                     float v1 = lyricData.w;
 
-                    // Text display size
+                    // Text natural size
                     float texH = abs(v1 - v0) * iLyricAtlasSize.y;
                     float texW = iLyricAtlasSize.x;
-                    // Fixed display width in screen fraction
-                    float displayWidthFrac = 0.08;
-                    float displayHeightFrac = displayWidthFrac * (texH / texW) * iAspectRatio;
-                    float textHeightSec = displayHeightFrac * iPianoRollTime / (1.0 - iPianoHeight);
+                    // Display width: scale to a fixed pixel height, maintain aspect ratio
+                    float displayPixH = 56.0;  // fixed pixel height for text
+                    float displayPixW = displayPixH * (texW / texH);
+                    float displayW = displayPixW / rollPixelW;
+                    float displayH = displayPixH / rollPixelH;
+                    float textHeightSec = displayH * iPianoRollTime;
 
-                    // Position: center on the note's key X position
-                    float noteX = (noteMidi - iPianoDynamic.x + iPianoExtra) /
-                                  (iPianoDynamic.y - iPianoDynamic.x + 2.0 * iPianoExtra);
+                    // Note center X in roll UV space
+                    float noteCenterX = (noteMidi + 0.5 - iPianoDynamic.x + iPianoExtra) /
+                                        (iPianoDynamic.y - iPianoDynamic.x + 2.0 * iPianoExtra);
 
                     if (seconds >= lyricTime && seconds < lyricTime + textHeightSec) {
                         float localY = (seconds - lyricTime) / textHeightSec;
-                        float localX = (rollUV.x - noteX) / displayWidthFrac + 0.5;
-                        if (localX >= 0.0 && localX <= 1.0) {
+                        // Center text on note
+                        float localX = (rollUV.x - noteCenterX) / displayW + 0.5;
+                        if (localX >= -0.05 && localX <= 1.05) {
+                            // Black outline: sample neighbors
+                            float outlineStep = 1.5 / iLyricAtlasSize.x;
+                            float outlineStepV = 1.5 / iLyricAtlasSize.y;
+                            float outline = 0.0;
+                            for (int ox = -1; ox <= 1; ox++) {
+                                for (int oy = -1; oy <= 1; oy++) {
+                                    if (ox == 0 && oy == 0) continue;
+                                    vec2 off = vec2(float(ox) * outlineStep, float(oy) * outlineStepV);
+                                    vec4 s = sampleTextAtlas(iLyricAtlas, iLyricAtlasSize, v0, v1, vec2(localX, localY) + off);
+                                    outline = max(outline, s.a);
+                                }
+                            }
+                            if (outline > 0.1) {
+                                fragColor.rgb = mix(fragColor.rgb, vec3(0.0), outline * 0.8);
+                            }
+                            // White text on top
                             vec4 texColor = sampleTextAtlas(iLyricAtlas, iLyricAtlasSize, v0, v1, vec2(localX, localY));
                             if (texColor.a > 0.1) {
-                                fragColor.rgb = mix(fragColor.rgb, vec3(1.0, 1.0, 1.0), texColor.a * 0.9);
+                                fragColor.rgb = mix(fragColor.rgb, vec3(1.0), texColor.a * 0.95);
                             }
                         }
                     }
@@ -333,35 +352,48 @@ void main() {
 
             // ===== KARAOKE MODE (mode 1) =====
             if (iLyricMode == 1 && iLyricCount > 0) {
-                // Find current line: last line whose start_time <= iTime
-                int currentLine = -1;
-                int nextLine = -1;
+                // Two fixed slots. Lines alternate: even lines → slot 0, odd → slot 1.
+                // Each line stays in its slot until it ends, then the next line fills the free slot.
+                // slot0Line and slot1Line: which line index is in each slot
+                int slot0Line = -1;
+                int slot1Line = -1;
+
+                // Find which lines should be displayed
                 for (int i = 0; i < iLyricCount; i++) {
                     vec4 lineData = texelFetch(iLyricTiming, ivec2(0, i), 0);
-                    if (lineData.x <= iTime) {
-                        currentLine = i;
-                    } else {
-                        if (currentLine == -1) currentLine = i;
+                    float startT = lineData.x;
+                    float endT = lineData.y;
+                    // Line is visible if started and not yet ended
+                    if (startT <= iTime && iTime < endT) {
+                        // Assign to slot based on line parity (even→0, odd→1)
+                        if (i % 2 == 0) slot0Line = i;
+                        else slot1Line = i;
+                    }
+                    // Also pre-show next line if current slot is empty
+                    if (startT > iTime && startT - iTime < 2.0) {
+                        if (i % 2 == 0 && slot0Line == -1) slot0Line = i;
+                        else if (i % 2 == 1 && slot1Line == -1) slot1Line = i;
                         break;
                     }
                 }
-                nextLine = currentLine + 1;
-                if (nextLine >= iLyricCount) nextLine = -1;
 
-                // Render 2 lines at center of roll
+                // Render 2 slots at center of roll
                 float lineHeight = 0.05;
-                float centerY = 0.5 * (iPianoHeight + 1.0);
-                float line1Y = centerY + lineHeight * 0.7;
-                float line2Y = centerY - lineHeight * 0.7;
+                float topY = 0.92;  // near top of roll area
+                float slot0Y = topY;                         // top slot
+                float slot1Y = topY - lineHeight * 2.5;      // bottom slot (1.5x gap)
 
                 for (int pass = 0; pass < 2; pass++) {
-                    int lineIdx = (pass == 0) ? currentLine : nextLine;
+                    int lineIdx = (pass == 0) ? slot0Line : slot1Line;
                     if (lineIdx < 0) continue;
-                    float targetY = (pass == 0) ? line1Y : line2Y;
+                    float targetY = (pass == 0) ? slot0Y : slot1Y;
 
-                    vec4 lineData = texelFetch(iLyricTiming, ivec2(0, lineIdx), 0);
-                    float v0 = lineData.z;
-                    float v1 = lineData.w;
+                    // Is this the actively singing line?
+                    vec4 ld = texelFetch(iLyricTiming, ivec2(0, lineIdx), 0);
+                    bool isActive = (ld.x <= iTime);
+
+                    float v0 = ld.z;
+                    float v1 = ld.w;
 
                     // Display size: scale to fit roll width
                     float texH = abs(v1 - v0) * iLyricAtlasSize.y;
@@ -376,12 +408,11 @@ void main() {
                     if (localX >= 0.0 && localX <= 1.0 && localY >= 0.0 && localY <= 1.0) {
                         vec4 texColor = sampleTextAtlas(iLyricAtlas, iLyricAtlasSize, v0, v1, vec2(localX, localY));
                         if (texColor.a > 0.1) {
-                            // Base color: dim white for upcoming, brighter for current
-                            vec3 textColor = (pass == 0) ? vec3(0.6) : vec3(0.35);
+                            // Dim for upcoming, brighter for active
+                            vec3 textColor = isActive ? vec3(0.6) : vec3(0.35);
 
-                            // Highlight sung syllables on current line
-                            if (pass == 0) {
-                                // localX is 0..1 in display space, same as atlas U
+                            // Highlight sung syllables on active line
+                            if (isActive) {
                                 for (int s = 0; s < iSyllableCount; s++) {
                                     vec4 sylData = texelFetch(iSyllableTiming, ivec2(0, s), 0);
                                     if (int(sylData.y) != lineIdx) continue;
