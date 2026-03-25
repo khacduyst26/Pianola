@@ -412,11 +412,24 @@ void main() {
 
                     // Note center X in roll UV space - match piano key layout
                     float noteCenterX = midiToRollX(int(noteMidi), iPianoDynamic, iPianoExtra);
+                    // Note edge: white key half-width in rollUV
+                    float iPianoMin = iPianoDynamic.x - iPianoExtra;
+                    float iPianoMax = iPianoDynamic.y + iPianoExtra;
+                    float nkeys = iPianoMax - iPianoMin;
+                    float halfKeyW = 6.0 / (7.0 * nkeys);
 
                     if (seconds >= lyricTime && seconds < lyricTime + textHeightSec) {
                         float localY = (seconds - lyricTime) / textHeightSec;
-                        // Center text on note
-                        float localX = (rollUV.x - noteCenterX) / displayW + 0.5;
+                        float localX;
+                        if (noteCenterX < 0.5) {
+                            // Left half: text starts at right edge of note
+                            float textStartX = noteCenterX + halfKeyW;
+                            localX = (rollUV.x - textStartX) / displayW;
+                        } else {
+                            // Right half: text ends at left edge of note
+                            float textEndX = noteCenterX - halfKeyW;
+                            localX = (rollUV.x - textEndX) / displayW + 1.0;
+                        }
                         if (localX >= -0.05 && localX <= 1.05) {
                             // Black outline: uniform in screen space
                             float strokePx = 1.0;
