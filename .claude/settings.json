@@ -26,7 +26,13 @@
       "Bash(.venv/bin/python -c \"from PIL import Image; img=Image.open\\(''background.png''\\); print\\(f''Size: {img.size}, Mode: {img.mode}''\\)\")",
       "Bash(.venv/bin/python -m pianola.shorts examples/113362.xml -o examples/113362-shorts.mp4 --preview)",
       "Bash(.venv/bin/pianola main:*)",
-      "Bash(ffprobe examples/113362-shorts.mp4)"
+      "Bash(ffprobe examples/113362-shorts.mp4)",
+      "Bash(.venv/bin/python -m pianola.batch examples/113362.xml --output-dir examples/batch-test --preview)",
+      "Bash(.venv/bin/python -m pianola.batch examples/113362.xml --output-dir examples/batch-final --preview)",
+      "Bash(ffprobe examples/batch-final/113362-short.mp4)",
+      "Bash(.venv/bin/python -m pianola.batch examples/113362.xml --output-dir examples/batch-v2 --preview)",
+      "Bash(.venv/bin/python -m pianola.batch examples/113362.xml --output-dir examples/batch-v3 --preview)",
+      "Bash(ffprobe examples/batch-v3/113362-short.mp4)"
     ]
   }
 }

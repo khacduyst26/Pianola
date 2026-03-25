@@ -5,176 +5,163 @@
 - Python 3.12 with venv: `.venv/bin/pip install -e .`
 - `music21`, `Pillow` installed in the venv
 - `fluidsynth` and `ffmpeg` available in PATH
-- A MusicXML file (`.xml` or `.musicxml`)
-- Optional: `SalamanderGrandPiano.sf2` in project root for high quality audio
-
-## Quick Reference
-
-```
-pianola config --musicxml <file> --midi-parts <parts> --audio-parts <parts> main --output <output.mp4> --ssaa <quality> --fps <fps>
-```
-
-| Option | Description |
-|--------|-------------|
-| `--musicxml` | Input MusicXML file |
-| `--midi-parts` | Parts to display as notes (comma-separated, 1-based) |
-| `--audio-parts` | Parts to play as audio (comma-separated, 1-based) |
-| `--soundfont` | Custom SoundFont (.sf2) path |
-| `--ssaa` | Supersampling quality (1=fast, 2=high quality) |
-| `--fps` | Framerate (30=preview, 60=production) |
-
-## List Available Parts
-
-```bash
-.venv/bin/python -c "
-from pianola.musicxml import parse_musicxml
-data = parse_musicxml('your_file.xml')
-for i, name in enumerate(data.part_names):
-    print(f'  Part {i+1}: {name}')
-"
-```
-
-Example output:
-```
-  Part 1: Voice Only (melody line with lyrics)
-  Part 2: Fuller Voice (melody + accompaniment)
-  Part 3: Background (accompaniment only)
-```
+- A MusicXML file (`.xml` or `.musicxml`) with 3 parts:
+  - Part 1: Voice Only (melody line with lyrics)
+  - Part 2: Fuller Voice (melody + accompaniment)
+  - Part 3: Background (accompaniment only)
+- `SalamanderGrandPiano.sf2` in project root (default SoundFont)
 
 ---
 
-## 1. Notes Version — Voice Only + Full Audio
+## Batch Render — All 4 Versions at Once (Recommended)
 
-Shows the voice/melody line as falling notes with lyrics attached to each note.
-Audio plays all 3 parts for full sound.
+One command generates all video versions from a single MusicXML file.
 
-- **Video**: Part 1 (Voice Only) — lyrics appear on each note bar
-- **Audio**: Parts 1,2,3 — full accompaniment
-
-**Preview:**
+**Production (highest quality — 1920x1080/1080x1920, 60fps, SSAA 2x):**
 ```bash
+.venv/bin/python -m pianola.batch your_song.xml
+```
+
+**Preview (fast — 960x540/540x960, 30fps, SSAA 1x):**
+```bash
+.venv/bin/python -m pianola.batch your_song.xml --preview
+```
+
+**Custom output directory:**
+```bash
+.venv/bin/python -m pianola.batch your_song.xml --output-dir output/
+```
+
+**Custom SoundFont:**
+```bash
+.venv/bin/python -m pianola.batch your_song.xml --soundfont /path/to/soundfont.sf2
+```
+
+**Output files:**
+
+| File | Video | Audio | Format | Description |
+|------|-------|-------|--------|-------------|
+| `songname-voice.mp4` | Part 1 | Parts 1,2,3 | 1920x1080 | Voice melody with lyrics on notes |
+| `songname-karaoke.mp4` | Parts 2,3 | Parts 1,2,3 | 1920x1080 | Piano with karaoke lyrics overlay |
+| `songname-bg-only.mp4` | Part 3 | Part 3 | 1920x1080 | Background accompaniment only |
+| `songname-short.mp4` | Part 1 | Parts 1,2,3 | 1080x1920 | YouTube Shorts with dynamic camera |
+
+---
+
+## Individual Renders
+
+### 1. Voice Version — Melody + Full Audio
+
+Shows the voice/melody line as falling notes with lyrics attached to each note bar.
+
+```bash
+# Preview
 .venv/bin/pianola config \
-  --musicxml examples/113362.xml \
+  --musicxml your_song.xml \
   --midi-parts 1 \
   --audio-parts 1,2,3 \
-  main --output notes-preview.mp4 --ssaa 1 --fps 30
-```
+  main --output songname-voice.mp4 --ssaa 1 --fps 30
 
-**Production:**
-```bash
+# Production
 .venv/bin/pianola config \
-  --musicxml examples/113362.xml \
+  --musicxml your_song.xml \
   --midi-parts 1 \
   --audio-parts 1,2,3 \
-  main --output notes-hq.mp4 --ssaa 2 --fps 60
+  main --output songname-voice.mp4 --ssaa 2 --fps 60
 ```
 
-**What you get:**
-- Falling note bars colored by pitch (C=Red, D=Orange, E=Yellow, F=Green, G=Blue, A=Purple, B=Pink)
-- Lyrics displayed on each note bar (syllable-by-syllable)
-- Chord labels scrolling in the left column
-- Piano keys highlighted and labeled for used notes
-- Full audio with all parts
+**Features:** Note-colored bars (C=Red, D=Orange, E=Yellow, F=Green, G=Blue, A=Purple, B=Pink), lyrics on note bars, chord labels in left column, highlighted piano keys with labels.
 
----
+### 2. Karaoke Version — Piano + Lyrics Overlay
 
-## 2. Karaoke Version — Fuller Voice + Full Audio
+Shows piano parts as falling notes with karaoke-style lyrics at the top. Two fixed lines, active syllable highlighted in yellow.
 
-Shows the fuller voice (melody + accompaniment) as falling notes with karaoke-style lyrics overlay.
-Two lines of lyrics at the top, highlighting syllable-by-syllable as they play.
-
-- **Video**: Parts 2,3 (Fuller Voice + Background)
-- **Audio**: Parts 1,2,3 — full sound including vocal
-
-**Preview:**
 ```bash
+# Preview
 .venv/bin/pianola config \
-  --musicxml examples/113362.xml \
+  --musicxml your_song.xml \
   --midi-parts 2,3 \
   --audio-parts 1,2,3 \
-  main --output karaoke-preview.mp4 --ssaa 1 --fps 30
-```
+  main --output songname-karaoke.mp4 --ssaa 1 --fps 30
 
-**Production:**
-```bash
+# Production
 .venv/bin/pianola config \
-  --musicxml examples/113362.xml \
+  --musicxml your_song.xml \
   --midi-parts 2,3 \
   --audio-parts 1,2,3 \
-  main --output karaoke-hq.mp4 --ssaa 2 --fps 60
+  main --output songname-karaoke.mp4 --ssaa 2 --fps 60
 ```
 
-**What you get:**
-- Fuller voice + background notes displayed together
-- Karaoke lyrics at the top: 2 fixed lines, active syllable highlighted in yellow
-- Chord labels in the left column
-- Full audio with all parts
+**Features:** Fuller voice + background notes together, karaoke lyrics (2 lines, syllable highlight), chord labels, full audio.
 
----
+### 3. Background Only — Accompaniment
 
-## 3. Simple Background — Background Only
+Shows only the background accompaniment part with its own audio.
 
-Shows only the background accompaniment part. Minimal, clean view.
-Good for practice or background music videos.
-
-- **Video**: Part 3 (Background only)
-- **Audio**: Part 3 — background accompaniment only
-
-**Preview:**
 ```bash
+# Preview
 .venv/bin/pianola config \
-  --musicxml examples/113362.xml \
+  --musicxml your_song.xml \
   --midi-parts 3 \
   --audio-parts 3 \
-  main --output background-preview.mp4 --ssaa 1 --fps 30
-```
+  main --output songname-bg-only.mp4 --ssaa 1 --fps 30
 
-**Production:**
-```bash
+# Production
 .venv/bin/pianola config \
-  --musicxml examples/113362.xml \
+  --musicxml your_song.xml \
   --midi-parts 3 \
   --audio-parts 3 \
-  main --output background-hq.mp4 --ssaa 2 --fps 60
+  main --output songname-bg-only.mp4 --ssaa 2 --fps 60
 ```
 
-**What you get:**
-- Only background accompaniment notes displayed
-- Karaoke lyrics at the top (from Voice part)
-- Chord labels in the left column
-- Audio plays only the background part
+**Features:** Background notes only, karaoke lyrics from Voice part, chord labels, single-part audio.
+
+### 4. YouTube Shorts — Vertical 9:16
+
+Vertical format for YouTube Shorts / Instagram Reels / TikTok. Dynamic camera follows the playing notes.
+
+```bash
+# Preview
+.venv/bin/python -m pianola.shorts your_song.xml -o songname-short.mp4 --preview
+
+# Production
+.venv/bin/python -m pianola.shorts your_song.xml -o songname-short.mp4
+```
+
+**Features:** 1080x1920 vertical, dynamic camera zoom, voice melody with lyrics, larger chord column, full audio.
 
 ---
 
-## 4. YouTube Shorts (9:16 Vertical)
+## CLI Options Reference
 
-Vertical format for YouTube Shorts / Instagram Reels / TikTok.
-Voice melody with dynamic camera that follows the playing notes.
+### Config options (`pianola config`)
 
-- **Video**: Part 1 (Voice Only) — 9:16 vertical, dynamic camera
-- **Audio**: Parts 1,2,3 — full accompaniment
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--musicxml` | — | Input MusicXML file |
+| `--midi` | — | Input MIDI file (no lyrics/chords) |
+| `--midi-parts` | all | Parts to display: `1`, `2,3`, etc. |
+| `--audio-parts` | follow midi-parts | Parts for audio: `1,2,3`, etc. |
+| `--soundfont` | SalamanderGrandPiano.sf2 | SoundFont (.sf2) path |
+| `--rolltime` | 2.0 | How long falling notes are visible (seconds) |
+| `--height` | 0.275 | Piano height ratio (0-1) |
+| `--sidekeys` | 6 | Extra keys around playing range |
+| `--fixed-camera` | true | Lock camera to full range |
+| `--no-fixed-camera` | — | Enable dynamic camera zoom |
 
-**Preview:**
-```bash
-.venv/bin/python -m pianola.shorts examples/113362.xml -o shorts-preview.mp4 --preview
-```
+### Render options (`main`)
 
-**Production:**
-```bash
-.venv/bin/python -m pianola.shorts examples/113362.xml -o shorts-hq.mp4
-```
-
-**What you get:**
-- 1080x1920 vertical video (540x960 for preview)
-- Dynamic camera zooming and following the playing notes
-- Lyrics on note bars, chord labels in left column
-- Full audio with all parts
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--output` | — | Output video file path |
+| `--ssaa` | 1 | Supersampling (1=fast, 2=high quality) |
+| `--fps` | 60 | Framerate |
 
 ---
 
-## Tips
+## Customization
 
-- **Custom SoundFont**: Use `--soundfont /path/to/your.sf2` to override the default
-- **Background image**: Place `background.png` in the project root for a custom roll background
-- **MIDI file input**: Use `--midi file.mid` instead of `--musicxml` for plain MIDI files (no lyrics/chords)
-- **Render speed**: `--ssaa 1 --fps 30` is ~4x faster than `--ssaa 2 --fps 60`
+- **Background image**: Place `background.png` in the project root
+- **SoundFont**: Place `.sf2` file and use `--soundfont` or set as default in `scene.py`
+- **Note colors**: Edit `getNoteColor()` in `pianola/resources/pianola.glsl`
+- **Key labels**: Edit `_build_key_label_atlas()` in `pianola/scene.py`

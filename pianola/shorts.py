@@ -36,8 +36,9 @@ def main():
     print()
 
     from pianola import PianolaScene
+    from shaderflow.scene import WindowBackend
 
-    scene = PianolaScene()
+    scene = PianolaScene(backend=WindowBackend.Headless)
     scene.config.musicxml = input_path
     scene.config.midi_parts = "1"
     scene.config.audio_parts = "1,2,3"
