@@ -72,14 +72,18 @@ class PianolaConfig:
     # --------------------------------------|
     # SoundFont
 
-    # Courtesy http://www.schristiancollins.com/generaluser.php
-    soundfont: Annotated[Path, Parameter(group="SoundFont")] = Path(pooch.retrieve(
-        url="https://github.com/x42/gmsynth.lv2/raw/b899b78640e0b99ec84d939c51dea2058673a73a/sf2/GeneralUser_LV2.sf2",
-        known_hash="xxh128:25586f570092806dccbf834d2c3517b9",
-        path=pianola.directories.user_data_path,
-        fname="GeneralUser_LV2.sf2",
-        progressbar=True,
-    ))
+    # Default: SalamanderGrandPiano if available, otherwise download GeneralUser
+    soundfont: Annotated[Path, Parameter(group="SoundFont")] = Path(
+        str(Path(__file__).parent.parent / "SalamanderGrandPiano.sf2")
+        if (Path(__file__).parent.parent / "SalamanderGrandPiano.sf2").exists()
+        else pooch.retrieve(
+            url="https://github.com/x42/gmsynth.lv2/raw/b899b78640e0b99ec84d939c51dea2058673a73a/sf2/GeneralUser_LV2.sf2",
+            known_hash="xxh128:25586f570092806dccbf834d2c3517b9",
+            path=pianola.directories.user_data_path,
+            fname="GeneralUser_LV2.sf2",
+            progressbar=True,
+        )
+    )
     """SoundFont for realtime or rendering audio"""
 
 # ---------------------------------------------------------------------------- #
