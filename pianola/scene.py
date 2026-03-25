@@ -126,6 +126,14 @@ class PianolaScene(ShaderScene):
         self._chord_atlas_size = (1, 1)
         self._lyric_atlas_size = (1, 1)
 
+        # Used keys texture: 128x1, value=1.0 if key is used in the song
+        self.used_keys_tex = ShaderTexture(scene=self, name="iUsedKeys")
+        self.used_keys_tex.from_numpy(np.zeros((1, 128, 1), dtype=np.float32))
+
+        # Key label atlas: pre-rendered note names
+        self.key_label_atlas = ShaderTexture(scene=self, name="iKeyLabelAtlas")
+        self._build_key_label_atlas()
+
     def handle(self, message: ShaderMessage) -> None:
         ShaderScene.handle(self, message)
 
@@ -170,6 +178,9 @@ class PianolaScene(ShaderScene):
         # Feed notes into ShaderPiano
         for note in mxml_data.notes:
             self.piano.add_note(note)
+
+        # Mark used keys for highlighting
+        self._update_used_keys(mxml_data.notes)
 
         # Feed tempo changes
         self.piano.tempo.clear()
@@ -219,6 +230,41 @@ class PianolaScene(ShaderScene):
                 str(midi_path),
             ))
             self._pending_audio = Path(self._audio.name)
+
+    def _build_key_label_atlas(self) -> None:
+        """Build atlas with note name labels (C D E F G A B) for white keys."""
+        from PIL import Image, ImageDraw, ImageFont
+        from pianola.text_overlay import _get_font
+
+        labels = ["C", "D", "E", "F", "G", "A", "B"]
+        font = _get_font(32)
+        temp = Image.new("RGBA", (1, 1))
+        td = ImageDraw.Draw(temp)
+
+        # Measure max size
+        max_w = max(td.textbbox((0, 0), l, font=font)[2] for l in labels) + 8
+        row_h = max(td.textbbox((0, 0), l, font=font)[3] for l in labels) + 8
+        atlas_h = row_h * 7
+
+        atlas = Image.new("RGBA", (max_w, atlas_h), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(atlas)
+        for i, label in enumerate(labels):
+            bbox = td.textbbox((0, 0), label, font=font)
+            x = (max_w - (bbox[2] - bbox[0])) // 2 - bbox[0]
+            y = i * row_h + (row_h - (bbox[3] - bbox[1])) // 2 - bbox[1]
+            draw.text((x, y), label, font=font, fill=(255, 255, 255, 255))
+
+        self.key_label_atlas.from_numpy(np.array(atlas))
+        self._key_label_atlas_size = (max_w, atlas_h)
+        self._key_label_row_h = row_h
+
+    def _update_used_keys(self, notes) -> None:
+        """Mark which MIDI keys are used in the song."""
+        used = np.zeros((1, 128, 1), dtype=np.float32)
+        for note in notes:
+            if 0 <= note.note < 128:
+                used[0, note.note, 0] = 1.0
+        self.used_keys_tex.from_numpy(np.flipud(used))
 
     def _load_text_overlays(self, mxml_data, lyrics_from_own_part: bool) -> None:
         """Build and load chord/lyric atlas textures from parsed MusicXML data."""
@@ -271,6 +317,8 @@ class PianolaScene(ShaderScene):
         yield Uniform("int", "iLyricMode", self._lyric_mode)
         yield Uniform("vec2", "iChordAtlasSize", self._chord_atlas_size)
         yield Uniform("vec2", "iLyricAtlasSize", self._lyric_atlas_size)
+        yield Uniform("vec2", "iKeyLabelAtlasSize", self._key_label_atlas_size)
+        yield Uniform("float", "iKeyLabelRowH", float(self._key_label_row_h))
 
     def setup(self) -> None:
         self.piano.clear()

@@ -21,7 +21,9 @@
       "Bash(ffprobe examples/113362-p23.mp4)",
       "Bash(ffprobe examples/113362-p23-fixed.mp4)",
       "Bash(ffprobe examples/113362-lyrics-on-note.mp4)",
-      "Bash(ffprobe examples/113362-karaoke.mp4)"
+      "Bash(ffprobe examples/113362-karaoke.mp4)",
+      "Bash(identify /Users/duy.do/projects/github/Pianola/background.png)",
+      "Bash(.venv/bin/python -c \"from PIL import Image; img=Image.open\\(''background.png''\\); print\\(f''Size: {img.size}, Mode: {img.mode}''\\)\")"
     ]
   }
 }

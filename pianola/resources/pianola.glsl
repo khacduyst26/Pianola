@@ -9,22 +9,22 @@
 #define BLEED 0.02
 #define COLUMN_WIDTH 0.06
 
-// Vibrant pastel note colors inspired by colorful piano apps
+// Rainbow note colors: C=Red, D=Orange, E=Yellow, F=Green, G=Blue, A=Purple, B=Pink
 vec3 getNoteColor(int noteIndex) {
-    int pc = noteIndex % 12; // pitch class: 0=C, 1=C#, 2=D, ...
+    int pc = noteIndex % 12;
     vec3 color = vec3(0.5);
-         if (pc == 0)  {color = vec3(0.20, 0.60, 1.00);}  // C  - Sky Blue
-    else if (pc == 1)  {color = vec3(0.30, 0.52, 0.90);}  // C# - Blue
-    else if (pc == 2)  {color = vec3(0.25, 0.70, 1.00);}  // D  - Light Blue
-    else if (pc == 3)  {color = vec3(0.20, 0.78, 0.65);}  // D# - Teal
-    else if (pc == 4)  {color = vec3(0.45, 0.85, 0.25);}  // E  - Lime Green
-    else if (pc == 5)  {color = vec3(0.40, 0.82, 0.30);}  // F  - Green
-    else if (pc == 6)  {color = vec3(0.35, 0.75, 0.28);}  // F# - Green
-    else if (pc == 7)  {color = vec3(0.98, 0.40, 0.60);}  // G  - Hot Pink
-    else if (pc == 8)  {color = vec3(0.90, 0.35, 0.55);}  // G# - Pink
-    else if (pc == 9)  {color = vec3(0.62, 0.38, 0.85);}  // A  - Purple
-    else if (pc == 10) {color = vec3(0.55, 0.32, 0.78);}  // A# - Violet
-    else if (pc == 11) {color = vec3(1.00, 0.60, 0.15);}  // B  - Orange
+         if (pc == 0)  {color = vec3(0.93, 0.35, 0.35);}  // C  - Red
+    else if (pc == 1)  {color = vec3(0.93, 0.35, 0.35);}  // C# - Red
+    else if (pc == 2)  {color = vec3(0.96, 0.65, 0.25);}  // D  - Orange
+    else if (pc == 3)  {color = vec3(0.96, 0.65, 0.25);}  // D# - Orange
+    else if (pc == 4)  {color = vec3(0.95, 0.82, 0.25);}  // E  - Yellow
+    else if (pc == 5)  {color = vec3(0.45, 0.78, 0.36);}  // F  - Green
+    else if (pc == 6)  {color = vec3(0.45, 0.78, 0.36);}  // F# - Green
+    else if (pc == 7)  {color = vec3(0.40, 0.58, 0.92);}  // G  - Blue
+    else if (pc == 8)  {color = vec3(0.40, 0.58, 0.92);}  // G# - Blue
+    else if (pc == 9)  {color = vec3(0.62, 0.42, 0.82);}  // A  - Purple
+    else if (pc == 10) {color = vec3(0.62, 0.42, 0.82);}  // A# - Purple
+    else if (pc == 11) {color = vec3(0.90, 0.45, 0.58);}  // B  - Pink
     return color;
 }
 
@@ -185,8 +185,16 @@ void main() {
             float dark        = mix(1, 0.5, press) * (black?0.3+press:0.8);
             float down        = mix(0.11, 0, press); // Key perspective
 
-            // Color the key: blend to note color when pressed
-            fragColor.rgb = mix(keyColor, noteColor, pow(abs(press), 0.5));
+            // Check if this key is used in the song
+            float used = texelFetch(iUsedKeys, ivec2(keyIndex, 0), 0).r;
+
+            // Color the key: tint used keys with note color, blend more when pressed
+            if (used > 0.5) {
+                float tint = max(press > 0.01 ? pow(abs(press), 0.5) : 0.35, 0.35);
+                fragColor.rgb = mix(keyColor, noteColor, tint);
+            } else {
+                fragColor.rgb = mix(keyColor, noteColor, pow(abs(press), 0.5));
+            }
 
             // Press animation
             if (keyStuv.y < down+iPianoHeight*0.1) {
@@ -204,6 +212,56 @@ void main() {
 
             // Fade to Black
             fragColor.rgb *= pow(1 - 1*press*(uv.y/iPianoHeight), 0.3);
+
+            // Note name label on used white keys
+            if (white && used > 0.5) {
+                int pc = keyIndex % 12;
+                int labelIdx = -1;
+                     if (pc == 0) labelIdx = 0;  // C
+                else if (pc == 2) labelIdx = 1;  // D
+                else if (pc == 4) labelIdx = 2;  // E
+                else if (pc == 5) labelIdx = 3;  // F
+                else if (pc == 7) labelIdx = 4;  // G
+                else if (pc == 9) labelIdx = 5;  // A
+                else if (pc == 11) labelIdx = 6; // B
+
+                if (labelIdx >= 0) {
+                    float labelV0 = float(labelIdx) * iKeyLabelRowH / iKeyLabelAtlasSize.y;
+                    float labelV1 = float(labelIdx + 1) * iKeyLabelRowH / iKeyLabelAtlasSize.y;
+                    float glV0 = 1.0 - labelV1;
+                    float glV1 = 1.0 - labelV0;
+
+                    // Calculate label size preserving aspect ratio
+                    float atlasEntryW = iKeyLabelAtlasSize.x;
+                    float atlasEntryH = iKeyLabelRowH;
+                    float keyPixelW = whiteSize * iResolution.x;
+                    float keyPixelH = iPianoHeight * iResolution.y;
+                    // Scale label to fit key width, maintain aspect ratio
+                    float labelPixH = keyPixelW * (atlasEntryH / atlasEntryW) * 0.25;
+                    float labelH = labelPixH / keyPixelH;  // as fraction of key height
+
+                    // Position: centered horizontally, upper portion of key (30% from top)
+                    float labelTop = 0.35;
+                    float labelBot = labelTop - labelH;
+
+                    // Label display width as fraction of key width (same scale as height)
+                    float labelW = labelPixH * (atlasEntryW / atlasEntryH) / keyPixelW;
+                    float labelLeft = 0.5 - labelW * 0.5;
+                    float labelRight = 0.5 + labelW * 0.5;
+
+                    if (keyStuv.y > labelBot && keyStuv.y < labelTop &&
+                        whiteStuv.x > labelLeft && whiteStuv.x < labelRight) {
+                        float localX = (whiteStuv.x - labelLeft) / labelW;
+                        float localY = (keyStuv.y - labelBot) / labelH;
+
+                        vec4 lc = sampleTextAtlas(iKeyLabelAtlas, iKeyLabelAtlasSize,
+                                                  glV0, glV1, vec2(localX, localY));
+                        if (lc.a > 0.1) {
+                            fragColor.rgb = mix(fragColor.rgb, vec3(0.0), lc.a * 0.85);
+                        }
+                    }
+                }
+            }
 
             // Top border
             float topBorder = iPianoHeight*(1 - TOP_BORDER);
