@@ -126,7 +126,7 @@ def build_chord_textures(
 def build_lyric_textures_on_note(
     lyrics: list,
     verse: int = 1,
-    font_size: int = 40,
+    font_size: int = 70,
 ) -> tuple[np.ndarray, np.ndarray, list[dict]]:
     """Build lyric textures for on-note mode (Part 1).
 

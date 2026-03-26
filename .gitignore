@@ -2,3 +2,5 @@
 site
 examples/*
 SalamanderGrandPiano.sf2
+.venv/*
+pianola/__pycache__
