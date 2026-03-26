@@ -639,69 +639,34 @@ void main() {
                 }
             }
 
-            // ===== LYRICS ON NOTES (mode 0) =====
+            // ===== LYRICS SCROLLING (mode 0) — right-aligned, synced with roll =====
             if (iLyricMode == 0 && iLyricCount > 0) {
                 for (int i = 0; i < iLyricCount; i++) {
                     vec4 lyricData = texelFetch(iLyricTiming, ivec2(0, i), 0);
                     float lyricTime = lyricData.x;
-                    float noteMidi = lyricData.y;
                     float lv0 = lyricData.z;
                     float lv1 = lyricData.w;
 
+                    // Same size as chord labels
+                    float fixedPixH = (iVerticalMode == 1) ? 108.0 : 63.0;
                     float texH = abs(lv1 - lv0) * iLyricAtlasSize.y;
                     float texW = iLyricAtlasSize.x;
-                    float dpH = 28.0;
-                    float dpW = dpH * (texW / texH);
-                    float rollPixH = (1.0 - iPianoHeight) * iResolution.y;
-                    float dH = dpH / rollPixH;
-                    float tHSec = dH * iPianoRollTime;
-                    float dW = dpW / iResolution.x;
+                    float displayPixW = fixedPixH * (texW / texH);
+                    float displayW = displayPixW / iResolution.x;
+                    float displayHFrac = fixedPixH / iResolution.y;
+                    float textHeightSec = displayHFrac * iPianoRollTime / (1.0 - iPianoHeight);
 
-                    if (seconds >= lyricTime && seconds < lyricTime + tHSec) {
-                        // Compute note center using EXACT SAME segment math as note rendering
-                        // Use noteMidi + 0.5 to get the CENTER of the key (not left edge)
-                        float noteMidiCenter = noteMidi + 0.5;
-                        float noteOctave = abs(noteMidiCenter) / 12.0;
-                        float segDivisor = 3.0 / 7.0;
-                        bool segFirst = fract(noteOctave) < segDivisor;
-                        int segOff = 12 * int(noteOctave) + (segFirst ? 0 : 5);
-                        float segX = segFirst ? (fract(noteOctave) / segDivisor) : ((fract(noteOctave) - segDivisor) / (1.0 - segDivisor));
-                        Segment noteSeg = makeSegment(segX, segFirst ? 5 : 7, segFirst ? 3 : 4, segOff);
-
-                        // The rollUV.x that corresponds to noteMidiCenter
-                        float centerRollX = (noteMidiCenter - iPianoMin) / (iPianoMax - iPianoMin);
-                        // At this rollUV.x, the segment gives us local position within the key
-                        // The TRUE visual center is where localPos = 0.5
-                        bool isBlk = isBlackKey(int(noteMidi));
-                        float keySize = isBlk ? blackSize : whiteSize;
-                        float localPos = isBlk ? noteSeg.Ax : noteSeg.Bx;
-                        float trueCenterX = centerRollX - (localPos - 0.5) * keySize;
-                        float halfW = keySize * 0.5;
-                        float noteLeftEdge = trueCenterX - halfW;
-                        float noteRightEdge = trueCenterX + halfW;
-
-                        float ly = (seconds - lyricTime) / tHSec;
-                        float lx;
-                        if (trueCenterX < 0.5) {
-                            // Left half: text starts at note right edge
-                            lx = (rollUV.x - noteRightEdge) / dW;
-                        } else {
-                            // Right half: text ends at note left edge
-                            lx = (rollUV.x - noteLeftEdge) / dW + 1.0;
-                        }
-                        if (lx >= -0.05 && lx <= 1.05) {
-                            float stX = 1.0 / dpW, stY = 1.0 / dpH;
-                            float ol = 0.0;
-                            for (int ox = -2; ox <= 2; ox++) {
-                                for (int oy = -2; oy <= 2; oy++) {
-                                    if (ox == 0 && oy == 0) continue;
-                                    vec4 s = sampleTextAtlas(iLyricAtlas, iLyricAtlasSize, lv0, lv1, vec2(lx,ly)+vec2(float(ox)*stX,float(oy)*stY));
-                                    ol = max(ol, s.a);
-                                }
+                    if (seconds >= lyricTime && seconds < lyricTime + textHeightSec) {
+                        float localY = (seconds - lyricTime) / textHeightSec;
+                        // Right-aligned: text ends at right edge with small padding
+                        float padX = 0.01;
+                        float rightEdge = 1.0 - padX;
+                        float localX = (uv.x - (rightEdge - displayW)) / displayW;
+                        if (localX >= 0.0 && localX <= 1.0) {
+                            vec4 texColor = sampleTextAtlas(iLyricAtlas, iLyricAtlasSize, lv0, lv1, vec2(localX, localY));
+                            if (texColor.a > 0.1) {
+                                fragColor.rgb = mix(fragColor.rgb, vec3(1.0), texColor.a);
                             }
-                            if (ol > 0.1) fragColor.rgb = mix(fragColor.rgb, vec3(1.0), ol * 0.9);
-                            vec4 tc = sampleTextAtlas(iLyricAtlas, iLyricAtlasSize, lv0, lv1, vec2(lx, ly));
-                            if (tc.a > 0.1) fragColor.rgb = mix(fragColor.rgb, vec3(0.0), tc.a * 0.95);
                         }
                     }
                 }
