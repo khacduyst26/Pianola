@@ -498,27 +498,20 @@ void main() {
                         bool  thisBlack = isBlackKey(thisIndex);
                         vec3  thisColor = getNoteColor(thisIndex);
 
-                        // "Real" scene distances. This wasn't fun to code.
+                        // "Real" scene distances
                         vec2 real = vec2(
                             lerp(0, (1-thisSizeX/2), 1, 1, abs(nagluv.x)),
                             lerp(0, (1-thisSizeY/2), 1, 1, abs(nagluv.y))
                         );
 
-                        // Minimum and maximum distances to the borders
-                        vec2 dist = vec2(1 - max(real.x, real.y), 1 - min(real.x, real.y));
-                        vec3 color = thisColor;
+                        // Rounded rectangle SDF
+                        float cornerR = 0.004;
+                        vec2 d = real - vec2(1.0 - cornerR);
+                        float sdf = length(max(d, 0.0)) - cornerR;
+                        float border = 1.0 - smoothstep(-0.001, 0.001, sdf);
 
-                        // Round shadows "as borders"
-                        float border_size = 0.002;
-                        float border = (smoothstep(1, 1-border_size, real.x) * smoothstep(1, 1-border_size, real.y));
-                        color *= border * (thisBlack?0.55:1.0);
+                        vec3 color = thisColor * (thisBlack ? 0.55 : 1.0);
                         fragColor.rgb = mix(fragColor.rgb, color, border);
-                        color *= (dist.x<border*2)?0.5:1;
-                        fragColor.rgb = mix(
-                            fragColor.rgb,
-                            fragColor.rgb*mix(0.1, 1, border),
-                            mix(0, 1, border)
-                        );
                     }
                 }
             }
