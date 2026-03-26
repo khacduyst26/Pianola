@@ -585,7 +585,7 @@ void main() {
                                 float notePixW = thisSizeX * iResolution.x;
                                 float notePixH = duration / iPianoRollTime * (1.0 - iPianoHeight) * iResolution.y;
                                 // Label: fixed pixel height, correct aspect ratio
-                                float lblPixH = 18.0;
+                                float lblPixH = (iVerticalMode == 1) ? 36.0 : 27.0;
                                 float lblPixW = lblPixH * (iKeyLabelAtlasSize.x / iKeyLabelRowH);
                                 // nagluv: -1..1 across note. Convert to 0..1
                                 float nx = (nagluv.x + 1.0) * 0.5;
