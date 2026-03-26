@@ -69,13 +69,38 @@ def main():
         f'musicxml = Path("{input_path}")',
     ] + sf_line + time_lines
 
+    # Auto-detect number of parts
+    import music21
+    score = music21.converter.parse(str(input_path))
+    num_parts = len(score.parts)
+    print(f"Detected {num_parts} parts:")
+    for i, part in enumerate(score.parts):
+        print(f"  Part {i+1}: {part.partName or f'Part {i+1}'}")
+
+    all_parts = ",".join(str(i) for i in range(1, num_parts + 1))
+    bg_parts = ",".join(str(i) for i in range(2, num_parts + 1))
+    last_part = str(num_parts)
+
+    if num_parts == 2:
+        # 2-voice: Voice + Piano
+        voice_video, voice_audio = '"1"', f'"{all_parts}"'
+        karaoke_video, karaoke_audio = f'"{all_parts}"', f'"{all_parts}"'
+        bg_video, bg_audio = '"2"', '"2"'
+        short_video, short_audio = '"1"', f'"{all_parts}"'
+    else:
+        # 3+ voices: Voice, Fuller Voice/Piano RH, Piano LH/Background
+        voice_video, voice_audio = '"1"', f'"{all_parts}"'
+        karaoke_video, karaoke_audio = f'"{bg_parts}"', f'"{all_parts}"'
+        bg_video, bg_audio = f'"{last_part}"', f'"{last_part}"'
+        short_video, short_audio = '"1"', f'"{all_parts}"'
+
     versions = [
         {
             "name": "voice",
             "desc": "Voice melody + full audio",
             "config": base_config + [
-                'midi_parts = "1"',
-                'audio_parts = "1,2,3"',
+                f'midi_parts = {voice_video}',
+                f'audio_parts = {voice_audio}',
                 'fixed_camera = True',
                 'vertical = False',
             ],
@@ -85,8 +110,8 @@ def main():
             "name": "karaoke",
             "desc": "Karaoke (piano + lyrics overlay)",
             "config": base_config + [
-                'midi_parts = "2,3"',
-                'audio_parts = "1,2,3"',
+                f'midi_parts = {karaoke_video}',
+                f'audio_parts = {karaoke_audio}',
                 'fixed_camera = True',
                 'vertical = False',
             ],
@@ -96,8 +121,8 @@ def main():
             "name": "bg-only",
             "desc": "Background accompaniment only",
             "config": base_config + [
-                'midi_parts = "3"',
-                'audio_parts = "3"',
+                f'midi_parts = {bg_video}',
+                f'audio_parts = {bg_audio}',
                 'fixed_camera = True',
                 'vertical = False',
             ],
@@ -107,8 +132,8 @@ def main():
             "name": "short",
             "desc": "YouTube Shorts (9:16 vertical)",
             "config": base_config + [
-                'midi_parts = "1"',
-                'audio_parts = "1,2,3"',
+                f'midi_parts = {short_video}',
+                f'audio_parts = {short_audio}',
                 'fixed_camera = False',
                 'vertical = True',
                 'sidekeys = 2',
