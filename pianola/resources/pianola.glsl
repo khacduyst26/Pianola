@@ -326,8 +326,8 @@ void main() {
                     float atlasEntryH = iKeyLabelRowH;
                     float keyPixelW = whiteSize * iResolution.x;
                     float keyPixelH = iPianoHeight * iResolution.y;
-                    // Scale label to fit key width, maintain aspect ratio
-                    float labelPixH = keyPixelW * (atlasEntryH / atlasEntryW) * 0.25;
+                    // Fixed pixel height for keyboard labels
+                    float labelPixH = 22.0;
                     float labelH = labelPixH / keyPixelH;  // as fraction of key height
 
                     // Position: centered horizontally, upper portion of key (30% from top)
@@ -512,6 +512,46 @@ void main() {
 
                         vec3 color = thisColor * (thisBlack ? 0.55 : 1.0);
                         fragColor.rgb = mix(fragColor.rgb, color, border);
+
+                        // Key label at bottom of note bar (white and black keys)
+                        if (border > 0.5) {
+                            int pc = thisIndex % 12;
+                            int lblIdx = -1;
+                                 if (pc == 0)  lblIdx = 0;  // C
+                            else if (pc == 1)  lblIdx = 7;  // C#
+                            else if (pc == 2)  lblIdx = 1;  // D
+                            else if (pc == 3)  lblIdx = 8;  // D#
+                            else if (pc == 4)  lblIdx = 2;  // E
+                            else if (pc == 5)  lblIdx = 3;  // F
+                            else if (pc == 6)  lblIdx = 9;  // F#
+                            else if (pc == 7)  lblIdx = 4;  // G
+                            else if (pc == 8)  lblIdx = 10; // G#
+                            else if (pc == 9)  lblIdx = 5;  // A
+                            else if (pc == 10) lblIdx = 11; // A#
+                            else if (pc == 11) lblIdx = 6;  // B
+                            if (lblIdx >= 0) {
+                                float lv0 = 1.0 - float(lblIdx + 1) * iKeyLabelRowH / iKeyLabelAtlasSize.y;
+                                float lv1 = 1.0 - float(lblIdx) * iKeyLabelRowH / iKeyLabelAtlasSize.y;
+                                // Note bar pixel dimensions on screen
+                                float notePixW = thisSizeX * iResolution.x;
+                                float notePixH = duration / iPianoRollTime * (1.0 - iPianoHeight) * iResolution.y;
+                                // Label: fixed pixel height, correct aspect ratio
+                                float lblPixH = 18.0;
+                                float lblPixW = lblPixH * (iKeyLabelAtlasSize.x / iKeyLabelRowH);
+                                // nagluv: -1..1 across note. Convert to 0..1
+                                float nx = (nagluv.x + 1.0) * 0.5;
+                                float ny = (nagluv.y + 1.0) * 0.5; // 0=bottom, 1=top
+                                // Center X, bottom-align Y
+                                float localX = (nx - 0.5) * notePixW / lblPixW + 0.5;
+                                float localY = (ny - 10.0 / notePixH) * notePixH / lblPixH;
+                                if (localX >= 0.0 && localX <= 1.0 && localY >= 0.0 && localY <= 1.0) {
+                                    vec4 lc = sampleTextAtlas(iKeyLabelAtlas, iKeyLabelAtlasSize, lv0, lv1, vec2(localX, localY));
+                                    if (lc.a > 0.1) {
+                                        fragColor.rgb = mix(fragColor.rgb, vec3(1.0), lc.a * 0.8);
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }

@@ -287,11 +287,12 @@ class PianolaScene(ShaderScene):
             self._pending_audio = Path(self._audio.name)
 
     def _build_key_label_atlas(self) -> None:
-        """Build atlas with note name labels (C D E F G A B) for white keys."""
+        """Build atlas with note name labels for all keys."""
         from PIL import Image, ImageDraw, ImageFont
         from pianola.text_overlay import _get_font
 
-        labels = ["C", "D", "E", "F", "G", "A", "B"]
+        # 0-6: white keys, 7-11: black keys (C#, D#, F#, G#, A#)
+        labels = ["C", "D", "E", "F", "G", "A", "B", "C#", "D#", "F#", "G#", "A#"]
         font = _get_font(32)
         temp = Image.new("RGBA", (1, 1))
         td = ImageDraw.Draw(temp)
@@ -299,7 +300,7 @@ class PianolaScene(ShaderScene):
         # Measure max size
         max_w = max(td.textbbox((0, 0), l, font=font)[2] for l in labels) + 8
         row_h = max(td.textbbox((0, 0), l, font=font)[3] for l in labels) + 8
-        atlas_h = row_h * 7
+        atlas_h = row_h * len(labels)
 
         atlas = Image.new("RGBA", (max_w, atlas_h), (0, 0, 0, 0))
         draw = ImageDraw.Draw(atlas)
