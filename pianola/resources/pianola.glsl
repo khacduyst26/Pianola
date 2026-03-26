@@ -277,9 +277,9 @@ void main() {
             // Check if this key is used in the song
             float used = texelFetch(iUsedKeys, ivec2(keyIndex, 0), 0).r;
 
-            // Color the key: tint used keys with note color, blend more when pressed
+            // Color the key: used keys are bold by default, lighter when pressed
             if (used > 0.5) {
-                float tint = max(press > 0.01 ? pow(abs(press), 0.5) : 0.35, 0.35);
+                float tint = press > 0.01 ? mix(0.85, 0.4, pow(abs(press), 0.5)) : 0.85;
                 fragColor.rgb = mix(keyColor, noteColor, tint);
             } else {
                 // Grey out unused keys
