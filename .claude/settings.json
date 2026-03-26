@@ -37,7 +37,10 @@
       "Bash(ls -lh \"examples/batch-v4/I JUST MIGHT\"*.mp4)",
       "Bash(.venv/bin/python -m pianola.batch '/Users/duy.do/Library/CloudStorage/Dropbox-Gravity/Duy Do/piano-working/Leadsheet - Bruno Mark/xmls/95337.xml' --output-dir examples/95337-test --preview --duration 30)",
       "Bash(.venv/bin/python -m pianola.batch '/Users/duy.do/Library/CloudStorage/Dropbox-Gravity/Duy Do/piano-working/Leadsheet - Bruno Mark/xmls/95337.xml' --output-dir examples/95337-test --preview)",
-      "Bash(.venv/bin/python -m pianola.batch '/Users/duy.do/Library/CloudStorage/Dropbox-Gravity/Duy Do/piano-working/Leadsheet - Bruno Mark/xmls/95337.xml' --output-dir examples/95337-test --duration 30)"
+      "Bash(.venv/bin/python -m pianola.batch '/Users/duy.do/Library/CloudStorage/Dropbox-Gravity/Duy Do/piano-working/Leadsheet - Bruno Mark/xmls/95337.xml' --output-dir examples/95337-test --duration 30)",
+      "Bash(ffprobe examples/intro-test-voice.mp4)",
+      "Bash(.venv/bin/python -m pianola.batch examples/113362.xml --output-dir examples/intro-test --preview --duration 15)",
+      "Bash(.venv/bin/python -m pianola.batch examples/113362.xml --output-dir examples/intro-test --duration 30)"
     ]
   }
 }

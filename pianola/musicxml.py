@@ -25,6 +25,10 @@ class MusicXMLData:
     lyrics: list[LyricEvent] = field(default_factory=list)
     tempo_changes: list[tuple[float, float]] = field(default_factory=list)
     part_names: list[str] = field(default_factory=list)
+    title: str = ""
+    key_signature: str = ""
+    initial_bpm: float = 120.0
+    scale_pitches: list[int] = field(default_factory=list)  # pitch classes 0-11 in the key's scale
 
 
 _KIND_LABELS = {
@@ -148,10 +152,24 @@ def parse_musicxml(
 
     score = music21.converter.parse(str(path))
 
-    # Collect part names before expanding (expand can reorder)
+    # Collect part names and metadata before expanding (expand can reorder)
     result = MusicXMLData()
     for part in score.parts:
         result.part_names.append(part.partName or f"Part {len(result.part_names) + 1}")
+
+    # Extract song metadata
+    if score.metadata:
+        result.title = score.metadata.title or score.metadata.movementName or ""
+    else:
+        result.title = ""
+    try:
+        key = score.analyze('key')
+        result.key_signature = f"{_note_name(key.tonic.name)} {'Major' if key.mode == 'major' else 'Minor'}"
+        # Extract scale pitch classes (0=C, 1=C#, ..., 11=B)
+        scale = key.getScale()
+        result.scale_pitches = sorted(set(p.midi % 12 for p in scale.getPitches() if p.midi is not None))
+    except Exception:
+        result.key_signature = ""
 
     # Expand repeats so notes/chords/lyrics match actual playback
     try:
@@ -161,6 +179,7 @@ def parse_musicxml(
 
     # Build tempo map from expanded score
     tempo_map = _get_tempo_map(score)
+    result.initial_bpm = tempo_map[0][1]
     for offset, bpm, _ in tempo_map:
         time_sec = _offset_to_seconds(tempo_map, offset)
         result.tempo_changes.append((time_sec, bpm))

@@ -282,3 +282,92 @@ def build_lyric_textures_karaoke(
             idx += 1
 
     return atlas, line_timing, syllable_timing, metadata
+
+
+def build_intro_atlas(
+    title: str,
+    bpm: float,
+    key_sig: str,
+) -> tuple[np.ndarray, dict]:
+    """Build intro screen text atlas with title, BPM, and key signature.
+
+    Returns:
+        (atlas_rgba, metadata) where metadata has UV coords for each row.
+    """
+    font_title = _get_font(72)
+    font_info_label = _get_font(32)
+    font_info_value = _get_font(48)
+    padding = 8
+
+    temp = Image.new("RGBA", (1, 1))
+    td = ImageDraw.Draw(temp)
+
+    # Measure each element
+    title_bbox = td.textbbox((0, 0), title or "Untitled", font=font_title)
+    title_w = title_bbox[2] - title_bbox[0] + padding * 2
+    title_h = title_bbox[3] - title_bbox[1] + padding * 2
+
+    bpm_label = "BPM"
+    bpm_value = str(int(bpm))
+    bpm_l_bbox = td.textbbox((0, 0), bpm_label, font=font_info_label)
+    bpm_v_bbox = td.textbbox((0, 0), bpm_value, font=font_info_value)
+    bpm_w = max(bpm_l_bbox[2] - bpm_l_bbox[0], bpm_v_bbox[2] - bpm_v_bbox[0]) + padding * 2
+    bpm_label_h = bpm_l_bbox[3] - bpm_l_bbox[1] + padding
+    bpm_value_h = bpm_v_bbox[3] - bpm_v_bbox[1] + padding
+    bpm_h = bpm_label_h + bpm_value_h + padding
+
+    key_label = "KEY"
+    key_value = key_sig or "—"
+    key_l_bbox = td.textbbox((0, 0), key_label, font=font_info_label)
+    key_v_bbox = td.textbbox((0, 0), key_value, font=font_info_value)
+    key_w = max(key_l_bbox[2] - key_l_bbox[0], key_v_bbox[2] - key_v_bbox[0]) + padding * 2
+    key_label_h = key_l_bbox[3] - key_l_bbox[1] + padding
+    key_value_h = key_v_bbox[3] - key_v_bbox[1] + padding
+    key_h = key_label_h + key_value_h + padding
+
+    # Atlas layout: 3 rows stacked vertically
+    atlas_w = max(title_w, bpm_w, key_w)
+    atlas_h = title_h + bpm_h + key_h
+
+    atlas = Image.new("RGBA", (atlas_w, atlas_h), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(atlas)
+
+    # Row 0: Title (centered)
+    y = 0
+    tx = (atlas_w - (title_bbox[2] - title_bbox[0])) // 2 - title_bbox[0]
+    ty = y + padding - title_bbox[1]
+    draw.text((tx, ty), title or "Untitled", font=font_title, fill=(255, 255, 255, 255))
+    title_v0 = 0
+    title_v1 = title_h / atlas_h
+
+    # Row 1: BPM label + value (centered)
+    y = title_h
+    # Label
+    lx = (atlas_w - (bpm_l_bbox[2] - bpm_l_bbox[0])) // 2 - bpm_l_bbox[0]
+    draw.text((lx, y + padding - bpm_l_bbox[1]), bpm_label, font=font_info_label, fill=(180, 180, 180, 255))
+    # Value
+    vx = (atlas_w - (bpm_v_bbox[2] - bpm_v_bbox[0])) // 2 - bpm_v_bbox[0]
+    draw.text((vx, y + bpm_label_h + padding - bpm_v_bbox[1]), bpm_value, font=font_info_value, fill=(255, 255, 255, 255))
+    bpm_v0 = title_h / atlas_h
+    bpm_v1 = (title_h + bpm_h) / atlas_h
+
+    # Row 2: KEY label + value (centered)
+    y = title_h + bpm_h
+    lx = (atlas_w - (key_l_bbox[2] - key_l_bbox[0])) // 2 - key_l_bbox[0]
+    draw.text((lx, y + padding - key_l_bbox[1]), key_label, font=font_info_label, fill=(180, 180, 180, 255))
+    vx = (atlas_w - (key_v_bbox[2] - key_v_bbox[0])) // 2 - key_v_bbox[0]
+    draw.text((vx, y + key_label_h + padding - key_v_bbox[1]), key_value, font=font_info_value, fill=(255, 255, 255, 255))
+    key_v0 = (title_h + bpm_h) / atlas_h
+    key_v1 = 1.0
+
+    metadata = {
+        "atlas_size": (atlas_w, atlas_h),
+        "title_v": (title_v0, title_v1),
+        "bpm_v": (bpm_v0, bpm_v1),
+        "key_v": (key_v0, key_v1),
+        "title_h_frac": title_h / atlas_h,
+        "bpm_h_frac": bpm_h / atlas_h,
+        "key_h_frac": key_h / atlas_h,
+    }
+
+    return np.array(atlas), metadata

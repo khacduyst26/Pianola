@@ -56,6 +56,9 @@ class PianolaConfig:
     vertical: Annotated[bool, Parameter(group="Piano")] = False
     """Vertical/Shorts mode: larger chord column and labels"""
 
+    intro_duration: Annotated[float, Parameter(group="Piano")] = 5.0
+    """Duration of the intro screen in seconds (0 to disable)"""
+
     # --------------------------------------|
     # Input
 
@@ -142,6 +145,15 @@ class PianolaScene(ShaderScene):
         self._chord_atlas_size = (1, 1)
         self._lyric_atlas_size = (1, 1)
 
+        # Intro screen texture
+        self.intro_atlas = ShaderTexture(scene=self, name="iIntroAtlas")
+        self.intro_atlas.from_numpy(np.zeros((1, 1, 4), dtype=np.uint8))
+        self._intro_atlas_size = (1, 1)
+        self._intro_title_v = (0.0, 1.0)
+        self._intro_bpm_v = (0.0, 0.0)
+        self._intro_key_v = (0.0, 0.0)
+        self._intro_scale_mask = 0
+
         # Used keys texture: 128x1, value=1.0 if key is used in the song
         self.used_keys_tex = ShaderTexture(scene=self, name="iUsedKeys")
         self.used_keys_tex.from_numpy(np.zeros((1, 128, 1), dtype=np.float32))
@@ -191,17 +203,42 @@ class PianolaScene(ShaderScene):
         if mxml_all.lyrics and not mxml_data.lyrics:
             mxml_data.lyrics = mxml_all.lyrics
 
-        # Feed notes into ShaderPiano
+        # Feed notes into ShaderPiano (offset by intro duration so iTime aligns)
+        intro_offset = self.config.intro_duration
+        from shaderflow.piano.notes import PianoNote
         for note in mxml_data.notes:
-            self.piano.add_note(note)
+            self.piano.add_note(PianoNote(
+                note=note.note,
+                start=note.start + intro_offset,
+                end=note.end + intro_offset,
+                channel=note.channel,
+                velocity=note.velocity,
+            ))
 
         # Mark used keys for highlighting
         self._update_used_keys(mxml_data.notes)
 
-        # Feed tempo changes
+        # Build intro screen atlas
+        if self.config.intro_duration > 0:
+            from pianola.text_overlay import build_intro_atlas
+            # Use all-parts data for metadata (title from first parse is fine)
+            intro_atlas, intro_meta = build_intro_atlas(
+                title=mxml_all.title or mxml_data.title,
+                bpm=mxml_all.initial_bpm,
+                key_sig=mxml_all.key_signature,
+            )
+            self.intro_atlas.from_numpy(intro_atlas)
+            self._intro_atlas_size = intro_meta["atlas_size"]
+            self._intro_title_v = intro_meta["title_v"]
+            self._intro_bpm_v = intro_meta["bpm_v"]
+            self._intro_key_v = intro_meta["key_v"]
+            # Scale pitches as 12-bit bitmask (bit 0=C, bit 1=C#, ..., bit 11=B)
+            self._intro_scale_mask = sum(1 << p for p in (mxml_all.scale_pitches or mxml_data.scale_pitches))
+
+        # Feed tempo changes (offset by intro duration)
         self.piano.tempo.clear()
         for when, bpm in mxml_data.tempo_changes:
-            self.piano.tempo.append((when, bpm))
+            self.piano.tempo.append((when + intro_offset, bpm))
         self.piano.tempo_texture.clear()
         for offset, (when, bpm) in enumerate(self.piano.tempo):
             self.piano.tempo_texture.write(
@@ -233,6 +270,8 @@ class PianolaScene(ShaderScene):
         """Load MIDI file (original flow)."""
         midi_path = self.config.midi or (pianola.resources / "entertainer.mid")
         self.piano.load_midi(midi_path)
+        # No metadata available for intro — disable it
+        self.config.intro_duration = 0.0
 
         # Pre-render audio for post-render muxing
         if (self.exporting) and (self.config.audio is None):
@@ -288,9 +327,13 @@ class PianolaScene(ShaderScene):
             build_chord_textures, build_lyric_textures_on_note,
             build_lyric_textures_karaoke,
         )
+        intro_off = self.config.intro_duration
 
         if mxml_data.chords:
             atlas, timing, _ = build_chord_textures(mxml_data.chords)
+            # Offset chord times by intro duration
+            if intro_off > 0:
+                timing[:, 0, 0] += intro_off
             self.chord_atlas.from_numpy(atlas)
             # Pre-flip timing so from_numpy's flipud results in correct order
             self.chord_timing.from_numpy(np.flipud(timing))
@@ -304,6 +347,8 @@ class PianolaScene(ShaderScene):
                 # Mode 0: lyrics on note bars (not used in vertical/shorts mode)
                 self._lyric_mode = 0
                 atlas, timing, _ = build_lyric_textures_on_note(mxml_data.lyrics, verse=1)
+                if intro_off > 0:
+                    timing[:, 0, 0] += intro_off
                 self.lyric_atlas.from_numpy(atlas)
                 self.lyric_timing.from_numpy(np.flipud(timing))
                 self._lyric_count = timing.shape[0]
@@ -315,6 +360,10 @@ class PianolaScene(ShaderScene):
                 atlas, line_timing, syl_timing, _ = build_lyric_textures_karaoke(
                     mxml_data.lyrics, verse=1
                 )
+                if intro_off > 0:
+                    line_timing[:, 0, 0] += intro_off  # start time
+                    line_timing[:, 0, 1] += intro_off  # end time
+                    syl_timing[:, 0, 0] += intro_off   # syllable time
                 self.lyric_atlas.from_numpy(atlas)
                 self.lyric_timing.from_numpy(np.flipud(line_timing))
                 self.syllable_timing.from_numpy(np.flipud(syl_timing))
@@ -336,6 +385,12 @@ class PianolaScene(ShaderScene):
         yield Uniform("vec2", "iKeyLabelAtlasSize", self._key_label_atlas_size)
         yield Uniform("float", "iKeyLabelRowH", float(self._key_label_row_h))
         yield Uniform("int", "iVerticalMode", int(self.config.vertical))
+        yield Uniform("float", "iIntroDuration", self.config.intro_duration)
+        yield Uniform("vec2", "iIntroAtlasSize", self._intro_atlas_size)
+        yield Uniform("vec4", "iIntroTitleV", (*self._intro_title_v, 0.0, 0.0))
+        yield Uniform("vec4", "iIntroBpmV", (*self._intro_bpm_v, 0.0, 0.0))
+        yield Uniform("vec4", "iIntroKeyV", (*self._intro_key_v, 0.0, 0.0))
+        yield Uniform("int", "iIntroScaleMask", self._intro_scale_mask)
 
     def setup(self) -> None:
         self.piano.clear()
@@ -360,14 +415,15 @@ class PianolaScene(ShaderScene):
             self.piano.global_maximum_note,
         )
 
-        # Apply start time offset
-        if self.config.start_from > 0:
-            self.time = self.config.start_from
-
     def main(self, **kwargs):
-        # Apply start_from/duration to shaderflow's time param
+        # Total render time = intro + song duration
+        intro = self.config.intro_duration
         if self.config.duration is not None:
-            kwargs.setdefault("time", self.config.duration)
+            kwargs.setdefault("time", self.config.duration + intro)
+        elif intro > 0:
+            # Auto-detect duration from shaderflow, but we need to add intro
+            # This will be handled by shaderflow's auto-detection + the intro offset
+            pass
 
         output = super().main(**kwargs)
 
@@ -376,13 +432,16 @@ class PianolaScene(ShaderScene):
             video_path = Path(output)
             if video_path.exists() and self._pending_audio.exists():
                 muxed = video_path.with_stem(video_path.stem + "_muxed")
-                audio_args = []
+                # Audio input args: seek to start_from, delay by intro duration
+                audio_input_args = []
                 if self.config.start_from > 0:
-                    audio_args = ["-ss", str(self.config.start_from)]
+                    audio_input_args += ["-ss", str(self.config.start_from)]
+                if self.config.intro_duration > 0:
+                    audio_input_args += ["-itsoffset", str(self.config.intro_duration)]
                 subprocess.check_call((
                     "ffmpeg", "-hide_banner", "-loglevel", "error",
                     "-i", str(video_path),
-                    *audio_args,
+                    *audio_input_args,
                     "-i", str(self._pending_audio),
                     "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
                     "-shortest", "-y", str(muxed),

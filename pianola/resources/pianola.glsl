@@ -113,6 +113,10 @@ void main() {
     float colWidth = 0.0;
     vec2 rollUV = uv;
 
+    // Intro time offset: songTime is the effective music playback time
+    float songTime = max(0.0, iTime - iIntroDuration);
+    bool inIntro = (iIntroDuration > 0.0 && iTime < iIntroDuration);
+
     {
 
         // Calculate indices and coordinates using remapped UV
@@ -146,6 +150,114 @@ void main() {
         if (uv.y < (-1) * BLEED) {}
 
         // Inside the piano keys
+        else if (uv.y < iPianoHeight && inIntro) {
+            // ===== INTRO: Static one-octave scale keyboard =====
+            float introFade = smoothstep(0.0, 0.5, iTime) * smoothstep(iIntroDuration, iIntroDuration - 0.5, iTime);
+            float keyY = uv.y / iPianoHeight;  // 0=bottom, 1=top
+
+            // One octave = 7 white keys, centered horizontally
+            float kbWidth = 0.55;  // keyboard width as fraction of screen
+            float kbLeft = (1.0 - kbWidth) * 0.5;
+            float kbRight = kbLeft + kbWidth;
+
+            if (uv.x >= kbLeft && uv.x <= kbRight) {
+                float kbX = (uv.x - kbLeft) / kbWidth;  // 0..1 across keyboard
+                int whiteIdx = int(kbX * 7.0);  // 0-6
+                float whiteLocalX = fract(kbX * 7.0);  // 0..1 within white key
+
+                // White key pitch classes: C=0, D=2, E=4, F=5, G=7, A=9, B=11
+                int whitePCs[7] = int[7](0, 2, 4, 5, 7, 9, 11);
+                int pc = whitePCs[min(whiteIdx, 6)];
+
+                // Check if this is a black key area (top 60% of key)
+                // Black keys sit between: C#(0-1), D#(1-2), F#(3-4), G#(4-5), A#(5-6)
+                bool inBlackKey = false;
+                int blackPC = -1;
+                if (keyY > 0.4) {  // black keys in upper portion
+                    // Black key positions (between white key boundaries)
+                    float bkWidth = 0.6;  // black key width relative to white key
+                    float bkHalf = bkWidth * 0.5;
+                    // Check right edge of current white key for black key
+                    bool hasBlackRight = (whiteIdx == 0 || whiteIdx == 1 || whiteIdx == 3 || whiteIdx == 4 || whiteIdx == 5);
+                    bool hasBlackLeft = (whiteIdx == 1 || whiteIdx == 2 || whiteIdx == 4 || whiteIdx == 5 || whiteIdx == 6);
+                    int blackRightPCs[7] = int[7](1, 3, -1, 6, 8, 10, -1);
+                    int blackLeftPCs[7] = int[7](-1, 1, 3, -1, 6, 8, 10);
+
+                    if (hasBlackRight && whiteLocalX > (1.0 - bkHalf)) {
+                        inBlackKey = true;
+                        blackPC = blackRightPCs[min(whiteIdx, 6)];
+                    } else if (hasBlackLeft && whiteLocalX < bkHalf) {
+                        inBlackKey = true;
+                        blackPC = blackLeftPCs[min(whiteIdx, 6)];
+                    }
+                }
+
+                if (inBlackKey && blackPC >= 0) {
+                    // Black key
+                    bool inScale = ((iIntroScaleMask >> blackPC) & 1) == 1;
+                    if (inScale) {
+                        fragColor.rgb = getNoteColor(blackPC) * 0.7;
+                    } else {
+                        fragColor.rgb = vec3(0.25);
+                    }
+                } else {
+                    // White key
+                    bool inScale = ((iIntroScaleMask >> pc) & 1) == 1;
+                    vec3 wkColor = inScale ? getNoteColor(pc) : vec3(0.92) * 0.3;
+                    // Separation lines
+                    wkColor *= smoothstep(0.0, 0.02, whiteLocalX) * smoothstep(1.0, 0.98, whiteLocalX);
+                    fragColor.rgb = wkColor;
+                }
+
+                // Key label on white keys that are in scale (bottom area)
+                if (!inBlackKey && keyY < 0.22) {
+                    bool inScale = ((iIntroScaleMask >> pc) & 1) == 1;
+                    if (inScale) {
+                        // Render key label from iKeyLabelAtlas
+                        int labelIdx = -1;
+                             if (pc == 0) labelIdx = 0;  // C
+                        else if (pc == 2) labelIdx = 1;  // D
+                        else if (pc == 4) labelIdx = 2;  // E
+                        else if (pc == 5) labelIdx = 3;  // F
+                        else if (pc == 7) labelIdx = 4;  // G
+                        else if (pc == 9) labelIdx = 5;  // A
+                        else if (pc == 11) labelIdx = 6; // B
+
+                        if (labelIdx >= 0) {
+                            float labelV0 = float(labelIdx) * iKeyLabelRowH / iKeyLabelAtlasSize.y;
+                            float labelV1 = float(labelIdx + 1) * iKeyLabelRowH / iKeyLabelAtlasSize.y;
+                            float glV0 = 1.0 - labelV1;
+                            float glV1 = 1.0 - labelV0;
+                            // Fixed pixel height for label, maintain aspect ratio
+                            float atlasEntryW = iKeyLabelAtlasSize.x;
+                            float atlasEntryH = iKeyLabelRowH;
+                            float labelPixH = 56.0;
+                            float labelPixW = labelPixH * (atlasEntryW / atlasEntryH);
+                            float wkPixW = (kbWidth / 7.0) * iResolution.x;
+                            float keyPixH = iPianoHeight * iResolution.y;
+                            float labelW = labelPixW / wkPixW;  // as fraction of key width
+                            float labelH = labelPixH / keyPixH;  // as fraction of key height
+                            float labelTop = 0.20;
+                            float labelBot = labelTop - labelH;
+                            if (keyY > labelBot && keyY < labelTop) {
+                                float lx = (whiteLocalX - 0.5) / labelW + 0.5;
+                                float ly = (keyY - labelBot) / labelH;
+                                if (lx >= 0.0 && lx <= 1.0) {
+                                    vec4 lc = sampleTextAtlas(iKeyLabelAtlas, iKeyLabelAtlasSize, glV0, glV1, vec2(lx, ly));
+                                    if (lc.a > 0.1) {
+                                        fragColor.rgb = mix(fragColor.rgb, vec3(1.0), lc.a * 0.9);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                fragColor.rgb *= introFade;
+            } else {
+                fragColor = vec4(vec3(0.12), 1.0);
+            }
+        }
         else if (uv.y < iPianoHeight) {
             bool white     = (isWhiteKey(rollIndex) || (uv.y < blackHeight) || (uv.y > iPianoHeight));
             int  keyIndex  = white ? whiteIndex:rollIndex;
@@ -170,7 +282,8 @@ void main() {
                 float tint = max(press > 0.01 ? pow(abs(press), 0.5) : 0.35, 0.35);
                 fragColor.rgb = mix(keyColor, noteColor, tint);
             } else {
-                fragColor.rgb = mix(keyColor, noteColor, pow(abs(press), 0.5));
+                // Grey out unused keys
+                fragColor.rgb = black ? vec3(0.30) : vec3(0.35);
             }
 
             // Press animation
@@ -250,6 +363,88 @@ void main() {
 
         // Inside the 'Roll'
         } else {
+
+          // ===== INTRO SCREEN (above piano, replaces roll during intro) =====
+          if (inIntro) {
+            fragColor = vec4(vec3(0.12), 1.0);
+
+            // Render intro text: title centered, BPM and KEY below
+            float introFade = smoothstep(0.0, 0.5, iTime) * smoothstep(iIntroDuration, iIntroDuration - 0.5, iTime);
+
+            // Title — center-right, large
+            {
+                float v0 = 1.0 - iIntroTitleV.y;  // flip for GL
+                float v1 = 1.0 - iIntroTitleV.x;
+                float texH = abs(v1 - v0) * iIntroAtlasSize.y;
+                float texW = iIntroAtlasSize.x;
+                float displayPixH = (iVerticalMode == 1) ? 80.0 : 100.0;
+                float displayPixW = displayPixH * (texW / texH);
+                float displayW = displayPixW / iResolution.x;
+                float displayH = displayPixH / iResolution.y;
+
+                float centerX = 0.55;
+                float centerY = 0.65;
+                float localX = (uv.x - centerX) / displayW + 0.5;
+                float localY = (uv.y - centerY) / displayH + 0.5;
+
+                if (localX >= 0.0 && localX <= 1.0 && localY >= 0.0 && localY <= 1.0) {
+                    vec4 tc = sampleTextAtlas(iIntroAtlas, iIntroAtlasSize, v0, v1, vec2(localX, localY));
+                    if (tc.a > 0.1) {
+                        fragColor.rgb = mix(fragColor.rgb, vec3(1.0), tc.a * introFade);
+                    }
+                }
+            }
+
+            // BPM — below title, left of center-right area
+            {
+                float v0 = 1.0 - iIntroBpmV.y;
+                float v1 = 1.0 - iIntroBpmV.x;
+                float texH = abs(v1 - v0) * iIntroAtlasSize.y;
+                float texW = iIntroAtlasSize.x;
+                float displayPixH = (iVerticalMode == 1) ? 180.0 : 210.0;
+                float displayPixW = displayPixH * (texW / texH);
+                float displayW = displayPixW / iResolution.x;
+                float displayH = displayPixH / iResolution.y;
+
+                float centerX = 0.42;
+                float centerY = 0.45;
+                float localX = (uv.x - centerX) / displayW + 0.5;
+                float localY = (uv.y - centerY) / displayH + 0.5;
+
+                if (localX >= 0.0 && localX <= 1.0 && localY >= 0.0 && localY <= 1.0) {
+                    vec4 tc = sampleTextAtlas(iIntroAtlas, iIntroAtlasSize, v0, v1, vec2(localX, localY));
+                    if (tc.a > 0.1) {
+                        fragColor.rgb = mix(fragColor.rgb, tc.rgb * vec3(1.0), tc.a * introFade);
+                    }
+                }
+            }
+
+            // KEY — below title, right of center-right area
+            {
+                float v0 = 1.0 - iIntroKeyV.y;
+                float v1 = 1.0 - iIntroKeyV.x;
+                float texH = abs(v1 - v0) * iIntroAtlasSize.y;
+                float texW = iIntroAtlasSize.x;
+                float displayPixH = (iVerticalMode == 1) ? 180.0 : 210.0;
+                float displayPixW = displayPixH * (texW / texH);
+                float displayW = displayPixW / iResolution.x;
+                float displayH = displayPixH / iResolution.y;
+
+                float centerX = 0.68;
+                float centerY = 0.45;
+                float localX = (uv.x - centerX) / displayW + 0.5;
+                float localY = (uv.y - centerY) / displayH + 0.5;
+
+                if (localX >= 0.0 && localX <= 1.0 && localY >= 0.0 && localY <= 1.0) {
+                    vec4 tc = sampleTextAtlas(iIntroAtlas, iIntroAtlasSize, v0, v1, vec2(localX, localY));
+                    if (tc.a > 0.1) {
+                        fragColor.rgb = mix(fragColor.rgb, tc.rgb * vec3(1.0), tc.a * introFade);
+                    }
+                }
+            }
+
+          } else {
+            // ===== NORMAL ROLL =====
 
             // Piano roll canvas coordinate (-1 to 1)
             vec2 roll = vec2(rollUV.x, lerp(iPianoHeight, 0, 1, 1, uv.y));
@@ -510,6 +705,7 @@ void main() {
                     }
                 }
             }
+          } // end else (normal roll vs intro)
         }
     }
     // // Post Effects
