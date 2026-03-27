@@ -84,10 +84,11 @@ def _build_chord_label(harmony) -> str:
     return label
 
 
-def _get_tempo_map(score) -> list[tuple[float, float, float]]:
+def _get_tempo_map(score, xml_path=None) -> list[tuple[float, float, float]]:
     """Build tempo map: list of (offset_quarters, bpm_quarter, sec_per_quarter).
 
     Handles dotted-quarter metronome marks (e.g. 55 BPM for dotted quarter = 82.5 BPM for quarter).
+    Falls back to <sound tempo> in raw XML if MetronomeMark has no BPM.
     Returns list sorted by offset.
     """
     import music21
@@ -98,6 +99,8 @@ def _get_tempo_map(score) -> list[tuple[float, float, float]]:
     seen_offsets = set()
     result = []
     for mm in marks:
+        if mm.number is None:
+            continue
         offset = float(mm.offset)
         if offset in seen_offsets:
             continue
@@ -105,6 +108,20 @@ def _get_tempo_map(score) -> list[tuple[float, float, float]]:
         quarter_bpm = mm.number * mm.referent.quarterLength
         sec_per_q = 60.0 / quarter_bpm
         result.append((offset, quarter_bpm, sec_per_q))
+
+    # If no valid MetronomeMark, try <sound tempo> from raw XML
+    if not result:
+        import xml.etree.ElementTree as ET
+        try:
+            path_str = str(xml_path) if xml_path else ''
+            tree = ET.parse(path_str)
+            for sound in tree.iter('sound'):
+                if 'tempo' in sound.attrib:
+                    bpm = float(sound.attrib['tempo'])
+                    return [(0.0, bpm, 60.0 / bpm)]
+        except Exception:
+            pass
+        return [(0.0, 120.0, 0.5)]
 
     result.sort(key=lambda x: x[0])
     return result
@@ -178,7 +195,7 @@ def parse_musicxml(
         pass  # Badly formed repeats — use score as-is
 
     # Build tempo map from expanded score
-    tempo_map = _get_tempo_map(score)
+    tempo_map = _get_tempo_map(score, xml_path=path)
     result.initial_bpm = tempo_map[0][1]
     for offset, bpm, _ in tempo_map:
         time_sec = _offset_to_seconds(tempo_map, offset)
@@ -323,4 +340,12 @@ def musicxml_to_midi(
                 part.remove(re, recurse=True)
 
     score.write("midi", fp=str(output_path))
+
+    # Post-process: force Piano program for SoundFont compatibility
+    import pretty_midi
+    midi = pretty_midi.PrettyMIDI(str(output_path))
+    for inst in midi.instruments:
+        inst.program = 0
+    midi.write(str(output_path))
+
     return output_path

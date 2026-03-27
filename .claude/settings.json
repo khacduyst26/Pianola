@@ -41,7 +41,8 @@
       "Bash(ffprobe examples/intro-test-voice.mp4)",
       "Bash(.venv/bin/python -m pianola.batch examples/113362.xml --output-dir examples/intro-test --preview --duration 15)",
       "Bash(.venv/bin/python -m pianola.batch examples/113362.xml --output-dir examples/intro-test --duration 30)",
-      "Bash(.venv/bin/python -m pianola.batch examples/1486500.musicxml --output-dir examples/neon-test --duration 30)"
+      "Bash(.venv/bin/python -m pianola.batch examples/1486500.musicxml --output-dir examples/neon-test --duration 30)",
+      "Read(//Users/duy.do/Desktop/**)"
     ]
   }
 }
