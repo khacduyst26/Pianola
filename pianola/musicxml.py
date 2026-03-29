@@ -318,9 +318,11 @@ def musicxml_to_midi(
         score = new_score
 
     # Remove chord symbols (Harmony) — they generate unwanted MIDI notes
-    for part in score.parts:
-        for h in list(part.recurse().getElementsByClass(music21.harmony.Harmony)):
-            part.remove(h, recurse=True)
+    # Keep them for single-track files (chords provide accompaniment)
+    if len(score.parts) > 1:
+        for part in score.parts:
+            for h in list(part.recurse().getElementsByClass(music21.harmony.Harmony)):
+                part.remove(h, recurse=True)
 
     # Try to expand repeats first (preserves correct playback order)
     # Fall back to stripping repeats if expand fails
