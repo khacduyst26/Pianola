@@ -358,8 +358,17 @@ class PianolaScene(ShaderScene):
             else:
                 # Mode 1: karaoke overlay
                 self._lyric_mode = 1
+                # For vertical/shorts mode: break lines by measure, auto-shrink font
+                measure_dur = 0.0
+                max_w_px = 0
+                if self.config.vertical:
+                    bpm = mxml_data.initial_bpm or 120.0
+                    measure_dur = 60.0 / bpm * 4  # 4/4 time, one measure
+                    max_w_px = 500  # fits within shorts width after shader scaling
                 atlas, line_timing, syl_timing, _ = build_lyric_textures_karaoke(
-                    mxml_data.lyrics, verse=1
+                    mxml_data.lyrics, verse=1,
+                    measure_duration=measure_dur,
+                    max_width_px=max_w_px,
                 )
                 if intro_off > 0:
                     line_timing[:, 0, 0] += intro_off  # start time

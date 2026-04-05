@@ -721,7 +721,7 @@ void main() {
                     // Display size: scale to fit roll width
                     float texH = abs(v1 - v0) * iLyricAtlasSize.y;
                     float texW = iLyricAtlasSize.x;
-                    float displayW = (iVerticalMode == 1) ? 1.2 : 0.8;
+                    float displayW = (iVerticalMode == 1) ? 0.9 : 0.8;
                     float displayH = displayW * (texH / texW) * iAspectRatio;
 
                     float centerX = 0.5;

@@ -164,17 +164,24 @@ def build_lyric_textures_on_note(
     return atlas, timing, metadata
 
 
-def _group_lyrics_into_lines(lyrics: list, verse: int = 1, max_per_line: int = 8) -> list:
+def _group_lyrics_into_lines(lyrics: list, verse: int = 1, max_per_line: int = 8, measure_duration: float = 0.0) -> list:
     """Group syllables into lines for karaoke display.
 
     Returns list of lines, each line = list of (time, text, syllabic).
-    Lines break at punctuation or max_per_line syllables.
+    Lines break at punctuation, max syllables, or measure boundaries.
     """
     verse_lyrics = [l for l in lyrics if l.verse == verse]
     lines = []
     current_line = []
 
     for lyric in verse_lyrics:
+        # Break at measure boundary if configured
+        if measure_duration > 0 and current_line:
+            first_time = current_line[0].time
+            if lyric.time - first_time >= measure_duration:
+                lines.append(current_line)
+                current_line = []
+
         current_line.append(lyric)
         # Break line at end of word with punctuation, or max length
         is_word_end = lyric.syllabic in ("single", "end")
@@ -193,20 +200,45 @@ def build_lyric_textures_karaoke(
     lyrics: list,
     verse: int = 1,
     font_size: int = 44,
+    measure_duration: float = 0.0,
+    max_width_px: int = 0,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, list[dict]]:
     """Build lyric textures for karaoke mode (Part 2,3).
 
     Renders full lines of text. Shader shows 2 lines at center, highlights active syllable.
+    If max_width_px > 0, lines that exceed it get a smaller font.
 
     Returns:
         (atlas_rgba, line_timing, syllable_timing, metadata)
         line_timing: (N_lines, 1, 4) float32 — (start_time, end_time, v0_gl, v1_gl)
         syllable_timing: (N_syllables, 1, 4) float32 — (time, line_index, x_start_ratio, x_end_ratio)
     """
-    lines = _group_lyrics_into_lines(lyrics, verse)
+    lines = _group_lyrics_into_lines(lyrics, verse, measure_duration=measure_duration)
     if not lines:
         empty = np.zeros((1, 1, 4), dtype=np.float32)
         return np.zeros((1, 1, 4), dtype=np.uint8), empty, empty, []
+
+    # If max_width_px set, find font size that fits the widest line
+    if max_width_px > 0:
+        temp_img = Image.new("RGBA", (1, 1))
+        td = ImageDraw.Draw(temp_img)
+        # Build all line texts first
+        all_texts = []
+        for line in lines:
+            t = ""
+            for syl in line:
+                if syl.syllabic in ("single", "begin") and t:
+                    t += " "
+                t += syl.text
+            all_texts.append(t)
+        # Shrink font until widest line fits
+        min_fs = max(font_size // 2, 18)
+        while font_size > min_fs:
+            f = _get_font(font_size)
+            widest = max(td.textbbox((0, 0), t, font=f)[2] for t in all_texts) + 8
+            if widest <= max_width_px:
+                break
+            font_size -= 2
 
     font = _get_font(font_size)
 

@@ -38,10 +38,16 @@ def main():
     from pianola import PianolaScene
     from shaderflow.scene import WindowBackend
 
+    # Auto-detect parts
+    import music21
+    score = music21.converter.parse(str(input_path))
+    num_parts = len(score.parts)
+    all_parts = ",".join(str(i) for i in range(1, num_parts + 1))
+
     scene = PianolaScene(backend=WindowBackend.Headless)
     scene.config.musicxml = input_path
     scene.config.midi_parts = "1"
-    scene.config.audio_parts = "1,2,3"
+    scene.config.audio_parts = all_parts
     scene.config.sidekeys = 2           # tighter framing for narrow width
     scene.config.fixed_camera = False    # dynamic camera movement
     scene.config.vertical = True         # larger chord column and labels
