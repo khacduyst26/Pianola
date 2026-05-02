@@ -4,3 +4,5 @@ examples/*
 SalamanderGrandPiano.sf2
 .venv/*
 pianola/__pycache__/*
+/.venv
+.venv/bin/*

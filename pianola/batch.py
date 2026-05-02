@@ -98,11 +98,32 @@ def main():
         ]
     else:
         if num_parts == 2:
-            # 2-voice: Voice + Piano
-            voice_video, voice_audio = '"1"', f'"{all_parts}"'
-            karaoke_video, karaoke_audio = f'"{all_parts}"', f'"{all_parts}"'
-            bg_video, bg_audio = '"2"', '"2"'
-            short_video, short_audio = '"1"', f'"{all_parts}"'
+            # 2-voice: Only karaoke and short versions
+            versions = [
+                {
+                    "name": "karaoke",
+                    "desc": "Karaoke (piano + lyrics overlay)",
+                    "config": base_config + [
+                        f'midi_parts = "{all_parts}"',
+                        f'audio_parts = "{all_parts}"',
+                        'fixed_camera = True',
+                        'vertical = False',
+                    ],
+                    "main": dict(width=w_land, height=h_land, ssaa=ssaa, fps=fps),
+                },
+                {
+                    "name": "short",
+                    "desc": "YouTube Shorts (9:16 vertical)",
+                    "config": base_config + [
+                        f'midi_parts = "{all_parts}"',
+                        f'audio_parts = "{all_parts}"',
+                        'fixed_camera = False',
+                        'vertical = True',
+                        'sidekeys = 2',
+                    ],
+                    "main": dict(width=w_short, height=h_short, ssaa=ssaa, fps=fps),
+                },
+            ]
         else:
             # 3+ voices: Voice, Fuller Voice/Piano RH, Piano LH/Background
             voice_video, voice_audio = '"1"', f'"{all_parts}"'
@@ -110,53 +131,53 @@ def main():
             bg_video, bg_audio = f'"{last_part}"', f'"{last_part}"'
             short_video, short_audio = '"1"', f'"{all_parts}"'
 
-        versions = [
-            {
-                "name": "voice",
-                "desc": "Voice melody + full audio",
-                "config": base_config + [
-                    f'midi_parts = {voice_video}',
-                    f'audio_parts = {voice_audio}',
-                    'fixed_camera = True',
-                    'vertical = False',
-                ],
-                "main": dict(width=w_land, height=h_land, ssaa=ssaa, fps=fps),
-            },
-            {
-                "name": "karaoke",
-                "desc": "Karaoke (piano + lyrics overlay)",
-                "config": base_config + [
-                    f'midi_parts = {karaoke_video}',
-                    f'audio_parts = {karaoke_audio}',
-                    'fixed_camera = True',
-                    'vertical = False',
-                ],
-                "main": dict(width=w_land, height=h_land, ssaa=ssaa, fps=fps),
-            },
-            {
-                "name": "bg-only",
-                "desc": "Background accompaniment only",
-                "config": base_config + [
-                    f'midi_parts = {bg_video}',
-                    f'audio_parts = {bg_audio}',
-                    'fixed_camera = True',
-                    'vertical = False',
-                ],
-                "main": dict(width=w_land, height=h_land, ssaa=ssaa, fps=fps),
-            },
-            {
-                "name": "short",
-                "desc": "YouTube Shorts (9:16 vertical)",
-                "config": base_config + [
-                    f'midi_parts = {short_video}',
-                    f'audio_parts = {short_audio}',
-                    'fixed_camera = False',
-                    'vertical = True',
-                    'sidekeys = 2',
-                ],
-                "main": dict(width=w_short, height=h_short, ssaa=ssaa, fps=fps),
-            },
-        ]
+            versions = [
+                {
+                    "name": "voice",
+                    "desc": "Voice melody + full audio",
+                    "config": base_config + [
+                        f'midi_parts = {voice_video}',
+                        f'audio_parts = {voice_audio}',
+                        'fixed_camera = True',
+                        'vertical = False',
+                    ],
+                    "main": dict(width=w_land, height=h_land, ssaa=ssaa, fps=fps),
+                },
+                {
+                    "name": "karaoke",
+                    "desc": "Karaoke (piano + lyrics overlay)",
+                    "config": base_config + [
+                        f'midi_parts = {karaoke_video}',
+                        f'audio_parts = {karaoke_audio}',
+                        'fixed_camera = True',
+                        'vertical = False',
+                    ],
+                    "main": dict(width=w_land, height=h_land, ssaa=ssaa, fps=fps),
+                },
+                {
+                    "name": "bg-only",
+                    "desc": "Background accompaniment only",
+                    "config": base_config + [
+                        f'midi_parts = {bg_video}',
+                        f'audio_parts = {bg_audio}',
+                        'fixed_camera = True',
+                        'vertical = False',
+                    ],
+                    "main": dict(width=w_land, height=h_land, ssaa=ssaa, fps=fps),
+                },
+                {
+                    "name": "short",
+                    "desc": "YouTube Shorts (9:16 vertical)",
+                    "config": base_config + [
+                        f'midi_parts = {short_video}',
+                        f'audio_parts = {short_audio}',
+                        'fixed_camera = False',
+                        'vertical = True',
+                        'sidekeys = 2',
+                    ],
+                    "main": dict(width=w_short, height=h_short, ssaa=ssaa, fps=fps),
+                },
+            ]
 
     total = len(versions)
     for i, v in enumerate(versions, 1):

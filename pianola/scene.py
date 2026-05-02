@@ -442,16 +442,13 @@ class PianolaScene(ShaderScene):
             video_path = Path(output)
             if video_path.exists() and self._pending_audio.exists():
                 muxed = video_path.with_stem(video_path.stem + "_muxed")
-                # Audio input args: seek to start_from, delay by intro duration
-                audio_input_args = []
-                if self.config.start_from > 0:
-                    audio_input_args += ["-ss", str(self.config.start_from)]
-                if self.config.intro_duration > 0:
-                    audio_input_args += ["-itsoffset", str(self.config.intro_duration)]
+
+                # Apply intro offset to audio
+                itsoffset = self.config.intro_duration - self.config.start_from
                 subprocess.check_call((
                     "ffmpeg", "-hide_banner", "-loglevel", "error",
                     "-i", str(video_path),
-                    *audio_input_args,
+                    "-itsoffset", str(itsoffset),
                     "-i", str(self._pending_audio),
                     "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
                     "-shortest", "-y", str(muxed),
