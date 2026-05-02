@@ -55,6 +55,11 @@ def normalize_velocity(score, min_vel: int = 70, max_vel: int = 80, threshold: f
                     new_vel = int(max(min_vel, min(max_vel, new_vel)))
                     element.volume.velocity = new_vel
 
+    # Preserve original metadata - use title for movementName to avoid filename pollution
+    if score.metadata and score.metadata.title:
+        # movementName often gets set to filename, so override with actual title
+        score.metadata.movementName = score.metadata.title
+
     return True
 
 
