@@ -12,6 +12,52 @@ import sys
 from pathlib import Path
 
 
+def normalize_velocity(score, min_vel: int = 70, max_vel: int = 80, threshold: float = 1.4):
+    """Normalize MIDI velocity to reduce dynamic range if too wide.
+
+    Args:
+        score: music21 Score object
+        min_vel: Target minimum velocity
+        max_vel: Target maximum velocity
+        threshold: Only normalize if original ratio > this (default 1.4x)
+
+    Returns:
+        True if normalization was applied, False otherwise
+    """
+    all_vels = []
+    for part in score.parts:
+        for element in part.flatten().notesAndRests:
+            if (element.isNote or element.isChord) and hasattr(element, 'volume') and element.volume:
+                if element.volume.velocity:
+                    all_vels.append(element.volume.velocity)
+
+    if not all_vels:
+        return False
+
+    orig_min, orig_max = min(all_vels), max(all_vels)
+    ratio = orig_max / orig_min if orig_min > 0 else 1.0
+
+    # Only normalize if range is too wide
+    if ratio <= threshold:
+        return False
+
+    print(f"  ⚠ Wide velocity range detected: {orig_min}-{orig_max} (ratio: {ratio:.2f}x)")
+    print(f"  → Normalizing to: {min_vel}-{max_vel} (ratio: {max_vel/min_vel:.2f}x)")
+
+    # Normalize all velocities
+    for part in score.parts:
+        for element in part.flatten().notesAndRests:
+            if (element.isNote or element.isChord) and hasattr(element, 'volume') and element.volume:
+                old_vel = element.volume.velocity
+                if old_vel:
+                    # Linear scaling from original range to target range
+                    new_vel = min_vel + (old_vel - orig_min) * (max_vel - min_vel) / (orig_max - orig_min)
+                    new_vel = int(max(min_vel, min(max_vel, new_vel)))
+                    element.volume.velocity = new_vel
+
+    return True
+
+
 def render_subprocess(config_lines: list[str], main_kwargs: dict):
     """Run render in a separate Python process to isolate OpenGL context."""
     config_code = "\n".join(f"scene.config.{line}" for line in config_lines)
@@ -65,17 +111,26 @@ def main():
     if args.start_from > 0:
         time_lines.append(f'start_from = {args.start_from}')
 
-    base_config = [
-        f'musicxml = Path("{input_path}")',
-    ] + sf_line + time_lines
-
-    # Auto-detect number of parts
+    # Auto-detect number of parts and normalize velocity if needed
     import music21
     score = music21.converter.parse(str(input_path))
     num_parts = len(score.parts)
     print(f"Detected {num_parts} parts:")
     for i, part in enumerate(score.parts):
         print(f"  Part {i+1}: {part.partName or f'Part {i+1}'}")
+
+    # Check and normalize velocity if range is too wide
+    normalized = normalize_velocity(score, min_vel=70, max_vel=80, threshold=1.4)
+    if normalized:
+        # Save normalized version to temp file
+        temp_path = out_dir / f"{stem}_normalized.musicxml"
+        score.write('musicxml', fp=str(temp_path))
+        print(f"  ✓ Saved normalized file: {temp_path}")
+        input_path = temp_path  # Use normalized file for rendering
+
+    base_config = [
+        f'musicxml = Path("{input_path}")',
+    ] + sf_line + time_lines
 
     all_parts = ",".join(str(i) for i in range(1, num_parts + 1))
     bg_parts = ",".join(str(i) for i in range(2, num_parts + 1))
