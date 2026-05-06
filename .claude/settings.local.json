@@ -11,7 +11,9 @@
       "Bash(ffmpeg:*)",
       "Bash(git rm:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(python -m pianola.batch:*)",
+      "Bash(.venv/bin/python:*)"
     ],
     "deny": [],
     "ask": []

@@ -173,13 +173,15 @@ def main():
                 },
                 {
                     "name": "short",
-                    "desc": "YouTube Shorts (9:16 vertical)",
+                    "desc": "YouTube Shorts (9:16 vertical, 2min, no intro)",
                     "config": base_config + [
                         f'midi_parts = "{all_parts}"',
                         f'audio_parts = "{all_parts}"',
                         'fixed_camera = False',
                         'vertical = True',
                         'sidekeys = 2',
+                        'intro_duration = 0',
+                        'duration = 120',
                     ],
                     "main": dict(width=w_short, height=h_short, ssaa=ssaa, fps=fps),
                 },
@@ -227,13 +229,15 @@ def main():
                 },
                 {
                     "name": "short",
-                    "desc": "YouTube Shorts (9:16 vertical)",
+                    "desc": "YouTube Shorts (9:16 vertical, 2min, no intro)",
                     "config": base_config + [
                         f'midi_parts = {short_video}',
                         f'audio_parts = {short_audio}',
                         'fixed_camera = False',
                         'vertical = True',
                         'sidekeys = 2',
+                        'intro_duration = 0',
+                        'duration = 120',
                     ],
                     "main": dict(width=w_short, height=h_short, ssaa=ssaa, fps=fps),
                 },
